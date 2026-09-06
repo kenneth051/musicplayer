@@ -46,6 +46,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.8.8")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.3")
+    implementation("com.google.code.gson:gson:2.12.1")
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -56,9 +60,7 @@ dependencies {
 
     // Music player
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
-
     implementation("androidx.media3:media3-exoplayer:1.8.0")
     implementation("androidx.media3:media3-session:1.8.0")
     implementation("androidx.media3:media3-ui:1.8.0")
-
 }

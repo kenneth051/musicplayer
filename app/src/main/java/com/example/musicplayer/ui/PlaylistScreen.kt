@@ -1,5 +1,6 @@
 package com.example.musicplayer.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,7 +17,11 @@ import com.example.musicplayer.viewmodel.MusicViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaylistScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
+fun PlaylistScreen(
+    viewModel: MusicViewModel, 
+    onBack: () -> Unit,
+    onNavigateToPlaylistDetail: (String) -> Unit
+) {
     val playlists by viewModel.playlists.collectAsState()
     
     Scaffold(
@@ -40,6 +45,7 @@ fun PlaylistScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(playlists) { playlist ->
                         ListItem(
+                            modifier = Modifier.clickable { onNavigateToPlaylistDetail(playlist.id) },
                             headlineContent = { Text(playlist.name) },
                             supportingContent = { Text("${playlist.songIds.size} songs") },
                             leadingContent = { Icon(Icons.Default.LibraryMusic, contentDescription = null) }

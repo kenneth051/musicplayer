@@ -4,7 +4,6 @@ import android.net.Uri
 
 /**
  * Represents a music track on the device.
- * Equivalent to a Rails Model.
  */
 data class Song(
     val id: Long,
@@ -12,5 +11,8 @@ data class Song(
     val artist: String,
     val contentUri: Uri,
     val duration: Int,
-    val album: String
+    val album: String,
+    val albumArtUri: Uri? = null,
+    val dateAdded: Long = 0L,
+    var isFavorite: Boolean = false
 )
