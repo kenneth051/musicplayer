@@ -132,9 +132,10 @@ fun FullPlayerScreen(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 val shuffleTooltipState = rememberTooltipState()
-                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(if (state.shuffleModeEnabled) "Shuffle Off" else "Shuffle On") } }, state = shuffleTooltipState) {
+                val shuffleText = if (state.shuffleModeEnabled) "Shuffle On" else "Shuffle Off"
+                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(shuffleText) } }, state = shuffleTooltipState) {
                     IconButton(onClick = { viewModel.toggleShuffle(); scope.launch { shuffleTooltipState.show() } }) {
-                        Icon(Icons.Default.Shuffle, null, tint = if (state.shuffleModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Shuffle, shuffleText, tint = if (state.shuffleModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -156,10 +157,16 @@ fun FullPlayerScreen(
                 }
 
                 val repeatTooltipState = rememberTooltipState()
-                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(when (state.repeatMode) { Player.REPEAT_MODE_OFF -> "Repeat One"; Player.REPEAT_MODE_ONE -> "Repeat All"; else -> "Repeat Off" }) } }, state = repeatTooltipState) {
+                val repeatText = when (state.repeatMode) {
+                    Player.REPEAT_MODE_OFF -> "Repeat Off"
+                    Player.REPEAT_MODE_ONE -> "Repeat One"
+                    Player.REPEAT_MODE_ALL -> "Repeat All"
+                    else -> "Repeat Off"
+                }
+                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(repeatText) } }, state = repeatTooltipState) {
                     IconButton(onClick = { viewModel.toggleRepeat(); scope.launch { repeatTooltipState.show() } }) {
                         val icon = when (state.repeatMode) { Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne; Player.REPEAT_MODE_ALL -> Icons.Default.Repeat; else -> Icons.Default.Repeat }
-                        Icon(icon, null, tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(icon, repeatText, tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

@@ -1,35 +1,19 @@
 package com.example.musicplayer.viewmodel
 
-import android.content.ComponentName
-import android.content.ContentUris
 import android.content.Context
-import android.net.Uri
-import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
-import com.example.musicplayer.data.MusicPersistence
+import com.example.musicplayer.data.MusicRepository
 import com.example.musicplayer.data.Playlist
 import com.example.musicplayer.data.Song
-import com.example.musicplayer.service.PlaybackService
-import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.MoreExecutors
-import kotlinx.coroutines.Dispatchers
+import com.example.musicplayer.player.PlaybackManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class MusicViewModel : ViewModel() {
 
@@ -48,23 +32,18 @@ class MusicViewModel : ViewModel() {
     private val _recentlyPlayed = MutableStateFlow<List<Song>>(emptyList())
     val recentlyPlayed: StateFlow<List<Song>> = _recentlyPlayed
 
-    private var persistence: MusicPersistence? = null
-
     val filteredSongs: StateFlow<List<Song>> = combine(_songs, _searchQuery) { songs, query ->
         if (query.isBlank()) songs
-        else songs.filter { 
-            it.title.contains(query, ignoreCase = true) || 
-            it.artist.contains(query, ignoreCase = true) ||
-            it.album.contains(query, ignoreCase = true)
-        }
+        else songs.filter { it.title.contains(query, true) || it.artist.contains(query, true) || it.album.contains(query, true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private var controllerFuture: ListenableFuture<MediaController>? = null
-    private val _controller = MutableStateFlow<MediaController?>(null)
-    val controller: StateFlow<MediaController?> = _controller
-
+    private var repository: MusicRepository? = null
+    private var playbackManager: PlaybackManager? = null
+    
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState
+
+    val controller: StateFlow<Player?> get() = playbackManager?.controller ?: MutableStateFlow(null)
 
     private var progressJob: Job? = null
 
@@ -80,64 +59,37 @@ class MusicViewModel : ViewModel() {
         val currentSong: Song? = null
     )
 
-    fun initController(context: Context) {
-        if (persistence == null) {
-            persistence = MusicPersistence(context)
-            loadStoredData()
+    fun init(context: Context) {
+        if (repository == null) {
+            repository = MusicRepository(context)
+            playbackManager = PlaybackManager(context)
+            
+            playbackManager?.init { player ->
+                setupControllerListener(player)
+            }
+            loadStoredMetadata()
         }
-        if (_controller.value != null) return
-
-        val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-        controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
-        controllerFuture?.addListener({
-            val controller = controllerFuture?.get()
-            _controller.value = controller
-            controller?.let { setupControllerListener(it) }
-        }, MoreExecutors.directExecutor())
     }
 
-    private fun loadStoredData() {
+    private fun loadStoredMetadata() {
         viewModelScope.launch {
-            persistence?.let { p ->
-                val favs = p.favorites.first()
-                val plists = p.playlists.first()
-                val recentIds = p.recentlyPlayed.first()
-
-                _playlists.value = plists
-                
-                // We'll update the favorite status once songs are loaded
-                updateFavoriteStatus(favs)
-                
-                // We'll update recently played once songs are loaded
-                updateRecentlyPlayed(recentIds)
+            repository?.let { repo ->
+                _playlists.value = repo.getPlaylists().first()
+                val recentIds = repo.getRecentlyPlayedIds().first()
+                _recentlyPlayed.value = _songs.value.filter { it.id in recentIds }
             }
         }
-    }
-
-    private fun updateFavoriteStatus(favIds: Set<Long>) {
-        _songs.value = _songs.value.map { song ->
-            song.copy(isFavorite = song.id in favIds)
-        }
-    }
-
-    private fun updateRecentlyPlayed(recentIds: List<Long>) {
-        val loadedSongs = _songs.value
-        _recentlyPlayed.value = recentIds.mapNotNull { id -> loadedSongs.find { it.id == id } }
     }
 
     private fun setupControllerListener(player: Player) {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 updatePlaybackState(player)
-                if (isPlaying) {
-                    startProgressTracking(player)
-                } else {
-                    stopProgressTracking()
-                }
+                if (isPlaying) startProgressTracking(player) else stopProgressTracking()
             }
             override fun onMediaMetadataChanged(metadata: MediaMetadata) { updatePlaybackState(player) }
-            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) { updatePlaybackState(player) }
-            override fun onRepeatModeChanged(repeatMode: Int) { updatePlaybackState(player) }
+            override fun onShuffleModeEnabledChanged(enabled: Boolean) { updatePlaybackState(player) }
+            override fun onRepeatModeChanged(mode: Int) { updatePlaybackState(player) }
             override fun onPlaybackParametersChanged(params: PlaybackParameters) { updatePlaybackState(player) }
             override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) { updatePlaybackState(player) }
         })
@@ -166,25 +118,14 @@ class MusicViewModel : ViewModel() {
     }
 
     private fun addToRecentlyPlayed(song: Song) {
-        val currentList = _recentlyPlayed.value.toMutableList()
-        currentList.remove(song)
-        currentList.add(0, song)
-        val updated = currentList.take(20)
+        val updated = (_recentlyPlayed.value.toMutableList().apply { remove(song); add(0, song) }).take(20)
         _recentlyPlayed.value = updated
-        
-        viewModelScope.launch {
-            persistence?.saveRecentlyPlayed(updated.map { it.id })
-        }
+        viewModelScope.launch { repository?.saveRecentlyPlayedIds(updated.map { it.id }) }
     }
 
     private fun startProgressTracking(player: Player) {
         progressJob?.cancel()
-        progressJob = viewModelScope.launch {
-            while (true) {
-                updatePlaybackState(player)
-                delay(1000)
-            }
-        }
+        progressJob = viewModelScope.launch { while (true) { updatePlaybackState(player); delay(1000) } }
     }
 
     private fun stopProgressTracking() { progressJob?.cancel() }
@@ -192,147 +133,50 @@ class MusicViewModel : ViewModel() {
     fun onSearchQueryChanged(query: String) { _searchQuery.value = query }
 
     fun toggleFavorite(song: Song) {
-        val updatedSongs = _songs.value.map {
-            if (it.id == song.id) it.copy(isFavorite = !it.isFavorite) else it
-        }
-        _songs.value = updatedSongs
-        
-        viewModelScope.launch {
-            val favIds = updatedSongs.filter { it.isFavorite }.map { it.id }.toSet()
-            persistence?.saveFavorites(favIds)
-        }
+        val updated = _songs.value.map { if (it.id == song.id) it.copy(isFavorite = !it.isFavorite) else it }
+        _songs.value = updated
+        viewModelScope.launch { repository?.saveFavorites(updated.filter { it.isFavorite }.map { it.id }.toSet()) }
     }
 
-    fun playSong(song: Song) { prepareAndPlay(_songs.value, _songs.value.indexOf(song), false) }
-    fun shuffleAll() { prepareAndPlay(_songs.value, 0, true) }
-
+    fun playSong(song: Song) = playbackManager?.play(_songs.value, _songs.value.indexOf(song), false)
+    fun shuffleAll() = playbackManager?.play(_songs.value, 0, true)
+    
     fun playPlaylist(playlist: Playlist, song: Song? = null) {
-        val playlistSongs = _songs.value.filter { it.id in playlist.songIds }
-        if (playlistSongs.isEmpty()) return
-        val startIndex = if (song != null) playlistSongs.indexOf(song) else 0
-        prepareAndPlay(playlistSongs, startIndex.coerceAtLeast(0), false)
+        val list = _songs.value.filter { it.id in playlist.songIds }
+        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false)
     }
 
-    private fun prepareAndPlay(songList: List<Song>, startIndex: Int, enableShuffle: Boolean) {
-        val player = _controller.value ?: return
-        if (songList.isEmpty()) return
-
-        val mediaItems = songList.map { s ->
-            MediaItem.Builder()
-                .setMediaId(s.id.toString())
-                .setUri(s.contentUri)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(s.title)
-                        .setArtist(s.artist)
-                        .setAlbumTitle(s.album)
-                        .setArtworkUri(s.albumArtUri)
-                        .build()
-                )
-                .build()
-        }
-
-        player.setMediaItems(mediaItems, startIndex, 0L)
-        player.shuffleModeEnabled = enableShuffle
-        player.prepare()
-        player.play()
-    }
-
-    fun togglePlayPause() = _controller.value?.let { if (it.isPlaying) it.pause() else it.play() }
-    fun skipNext() = _controller.value?.seekToNext()
-    fun skipPrevious() = _controller.value?.seekToPrevious()
-    fun seekTo(position: Long) = _controller.value?.seekTo(position)
-    fun toggleShuffle() = _controller.value?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }
-    fun setPlaybackSpeed(speed: Float) = _controller.value?.setPlaybackSpeed(speed)
-    fun toggleRepeat() = _controller.value?.let {
-        it.repeatMode = when (it.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
-            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
-            else -> Player.REPEAT_MODE_OFF
-        }
-    }
+    fun togglePlayPause() = playbackManager?.togglePlayPause()
+    fun skipNext() = playbackManager?.skipNext()
+    fun skipPrevious() = playbackManager?.skipPrevious()
+    fun seekTo(pos: Long) = playbackManager?.seekTo(pos)
+    fun toggleShuffle() = playbackManager?.toggleShuffle()
+    fun setPlaybackSpeed(speed: Float) = playbackManager?.setSpeed(speed)
+    fun toggleRepeat() = playbackManager?.toggleRepeat()
 
     fun createPlaylist(name: String) {
         val updated = _playlists.value + Playlist(name = name)
         _playlists.value = updated
-        viewModelScope.launch { persistence?.savePlaylists(updated) }
+        viewModelScope.launch { repository?.savePlaylists(updated) }
     }
 
     fun addSongToPlaylist(song: Song, playlistId: String) {
-        val updated = _playlists.value.map { 
-            if (it.id == playlistId && song.id !in it.songIds) it.copy(songIds = it.songIds + song.id) else it
-        }
+        val updated = _playlists.value.map { if (it.id == playlistId && song.id !in it.songIds) it.copy(songIds = it.songIds + song.id) else it }
         _playlists.value = updated
-        viewModelScope.launch { persistence?.savePlaylists(updated) }
+        viewModelScope.launch { repository?.savePlaylists(updated) }
     }
 
     fun loadSongs(context: Context) {
         viewModelScope.launch {
             _isLoading.value = true
-            val fetched = fetchAudioFiles(context)
-            _songs.value = fetched
-            
-            // Re-apply favorites and recently played after fetch
-            persistence?.let { p ->
-                val favIds = p.favorites.first()
-                updateFavoriteStatus(favIds)
-                val recentIds = p.recentlyPlayed.first()
-                updateRecentlyPlayed(recentIds)
-            }
-            
+            _songs.value = repository?.fetchAllSongs() ?: emptyList()
+            loadStoredMetadata() // Re-sync logic
             _isLoading.value = false
-        }
-    }
-
-    private suspend fun fetchAudioFiles(context: Context): List<Song> {
-        return withContext(Dispatchers.IO) {
-            val songList = mutableListOf<Song>()
-            val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-            val projection = arrayOf(
-                MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.TITLE,
-                MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.ALBUM,
-                MediaStore.Audio.Media.ALBUM_ID,
-                MediaStore.Audio.Media.DATE_ADDED
-            )
-            val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
-            val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
-
-            context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                val durCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                val albCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                val albIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
-
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idCol)
-                    val albId = cursor.getLong(albIdCol)
-                    val artUri = Uri.parse("content://media/external/audio/albumart/$albId")
-                    
-                    songList.add(Song(
-                        id = id,
-                        title = cursor.getString(titleCol) ?: "Unknown",
-                        artist = cursor.getString(artistCol) ?: "Unknown",
-                        duration = cursor.getInt(durCol),
-                        album = cursor.getString(albCol) ?: "Unknown",
-                        contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id),
-                        albumArtUri = artUri,
-                        dateAdded = cursor.getLong(dateCol)
-                    ))
-                }
-            }
-            songList
         }
     }
 
     override fun onCleared() {
         super.onCleared()
-        stopProgressTracking()
-        controllerFuture?.let { MediaController.releaseFuture(it) }
+        playbackManager?.release()
     }
 }
