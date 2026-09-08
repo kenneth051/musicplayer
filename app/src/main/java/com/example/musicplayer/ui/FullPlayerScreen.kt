@@ -1,13 +1,13 @@
 package com.example.musicplayer.ui
 
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,15 +15,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import androidx.palette.graphics.Palette
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import com.example.musicplayer.R
 import com.example.musicplayer.viewmodel.MusicViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,10 +42,37 @@ fun FullPlayerScreen(
     viewModel: MusicViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val state by viewModel.playbackState.collectAsState()
     var showSpeedMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf(false) }
+    var showSleepTimerMenu by remember { mutableStateOf(false) }
+    
+    val defaultPrimary = MaterialTheme.colorScheme.primaryContainer
+    var dominantColor by remember { mutableStateOf(defaultPrimary) }
+    
+    LaunchedEffect(state.currentSong?.albumArtUri) {
+        val uri = state.currentSong?.albumArtUri
+        if (uri == null) {
+            dominantColor = defaultPrimary
+        } else {
+            val loader = ImageLoader(context)
+            val request = ImageRequest.Builder(context).data(uri).allowHardware(false).build()
+            val result = loader.execute(request)
+            if (result is SuccessResult) {
+                val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
+                bitmap?.let { b ->
+                    // Runs synchronously (off the main thread) inside this coroutine instead of
+                    // Palette's async callback, so it's cancelled along with the effect when the
+                    // song changes again and can't overwrite dominantColor with a stale result.
+                    val palette = withContext(Dispatchers.Default) { Palette.from(b).generate() }
+                    palette.dominantSwatch?.let { swatch -> dominantColor = Color(swatch.rgb) }
+                }
+            }
+        }
+    }
+
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -61,6 +99,19 @@ fun FullPlayerScreen(
                             onClick = { showOptionsMenu = false; showSpeedMenu = true },
                             leadingIcon = { Icon(Icons.Default.Speed, null) }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Sleep Timer ${state.sleepTimerRemaining?.let { "($it min)" } ?: ""}") },
+                            onClick = { showOptionsMenu = false; showSleepTimerMenu = true },
+                            leadingIcon = { Icon(Icons.Default.Timer, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Set as Ringtone") },
+                            onClick = {
+                                showOptionsMenu = false
+                                state.currentSong?.let { viewModel.setAsRingtone(context, it) }
+                            },
+                            leadingIcon = { Icon(Icons.Default.Notifications, null) }
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
@@ -68,8 +119,14 @@ fun FullPlayerScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
+        val surfaceColor = MaterialTheme.colorScheme.surface
+        // Pick readable text color against the actual tinted background behind it, rather than
+        // assuming it's always dark (light/pastel album art would make white text unreadable).
+        val displayedTint = dominantColor.copy(alpha = 0.4f).compositeOver(surfaceColor)
+        val onDominantColor = if (displayedTint.luminance() > 0.5f) Color.Black else Color.White
+
         Box(modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), MaterialTheme.colorScheme.surface))
+            Brush.verticalGradient(listOf(dominantColor.copy(alpha = 0.4f), surfaceColor))
         ))
 
         Column(
@@ -83,18 +140,14 @@ fun FullPlayerScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Crossfade(targetState = state.currentSong?.albumArtUri, label = "AlbumArt") { uri ->
-                    if (uri != null) {
-                        AsyncImage(
-                            model = uri,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(100.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        error = painterResource(R.drawable.ic_default_art),
+                        placeholder = painterResource(R.drawable.ic_default_art)
+                    )
                 }
             }
 
@@ -103,6 +156,7 @@ fun FullPlayerScreen(
                     text = state.currentTitle,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
+                    color = onDominantColor,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -111,7 +165,7 @@ fun FullPlayerScreen(
                 Text(
                     text = state.currentArtist,
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = onDominantColor.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
                 )
             }
@@ -122,7 +176,7 @@ fun FullPlayerScreen(
                     onValueChange = { viewModel.seekTo(it.toLong()) },
                     valueRange = 0f..state.currentDuration.toFloat().coerceAtLeast(1f),
                     modifier = Modifier.fillMaxWidth(),
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                    colors = SliderDefaults.colors(thumbColor = dominantColor, activeTrackColor = dominantColor)
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(formatTime(state.currentPosition), style = MaterialTheme.typography.bodySmall)
@@ -135,7 +189,7 @@ fun FullPlayerScreen(
                 val shuffleText = if (state.shuffleModeEnabled) "Shuffle On" else "Shuffle Off"
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(shuffleText) } }, state = shuffleTooltipState) {
                     IconButton(onClick = { viewModel.toggleShuffle(); scope.launch { shuffleTooltipState.show() } }) {
-                        Icon(Icons.Default.Shuffle, shuffleText, tint = if (state.shuffleModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Shuffle, shuffleText, tint = if (state.shuffleModeEnabled) dominantColor else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -146,10 +200,15 @@ fun FullPlayerScreen(
                 LargeFloatingActionButton(
                     onClick = { viewModel.togglePlayPause() },
                     shape = CircleShape,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = dominantColor.copy(alpha = 0.2f),
+                    contentColor = Color.White
                 ) {
-                    Icon(imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, modifier = Modifier.size(48.dp))
+                    Icon(
+                        imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (state.isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.White
+                    )
                 }
 
                 IconButton(onClick = { viewModel.skipNext() }, modifier = Modifier.size(56.dp)) {
@@ -157,16 +216,11 @@ fun FullPlayerScreen(
                 }
 
                 val repeatTooltipState = rememberTooltipState()
-                val repeatText = when (state.repeatMode) {
-                    Player.REPEAT_MODE_OFF -> "Repeat Off"
-                    Player.REPEAT_MODE_ONE -> "Repeat One"
-                    Player.REPEAT_MODE_ALL -> "Repeat All"
-                    else -> "Repeat Off"
-                }
+                val repeatText = when (state.repeatMode) { Player.REPEAT_MODE_OFF -> "Repeat Off"; Player.REPEAT_MODE_ONE -> "Repeat One"; else -> "Repeat All" }
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(repeatText) } }, state = repeatTooltipState) {
                     IconButton(onClick = { viewModel.toggleRepeat(); scope.launch { repeatTooltipState.show() } }) {
                         val icon = when (state.repeatMode) { Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne; Player.REPEAT_MODE_ALL -> Icons.Default.Repeat; else -> Icons.Default.Repeat }
-                        Icon(icon, repeatText, tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(icon, repeatText, tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) dominantColor else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -189,6 +243,25 @@ fun FullPlayerScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showSpeedMenu = false }) { Text("Close") } }
+        )
+    }
+
+    if (showSleepTimerMenu) {
+        AlertDialog(
+            onDismissRequest = { showSleepTimerMenu = false },
+            title = { Text("Sleep Timer") },
+            text = {
+                Column {
+                    listOf(null, 5, 15, 30, 60).forEach { mins ->
+                        Row(modifier = Modifier.fillMaxWidth().clickable { viewModel.setSleepTimer(mins); showSleepTimerMenu = false }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = state.sleepTimerRemaining == mins, onClick = null)
+                            Spacer(Modifier.width(16.dp))
+                            Text(mins?.let { "$it Minutes" } ?: "Off")
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSleepTimerMenu = false }) { Text("Cancel") } }
         )
     }
 

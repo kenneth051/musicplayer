@@ -1,6 +1,10 @@
 package com.example.musicplayer.viewmodel
 
 import android.content.Context
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaMetadata
@@ -15,7 +19,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-class MusicViewModel : ViewModel() {
+/**
+ * Refactored to allow dependency injection for testing.
+ */
+class MusicViewModel(
+    private var repository: MusicRepository? = null,
+    private var playbackManager: PlaybackManager? = null
+) : ViewModel() {
+
+    enum class SortOrder { DATE_ADDED, TITLE, ARTIST, MOST_PLAYED }
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs
@@ -29,23 +41,36 @@ class MusicViewModel : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
+    private val _sortOrder = MutableStateFlow(SortOrder.DATE_ADDED)
+    val sortOrder: StateFlow<SortOrder> = _sortOrder
+
     private val _recentlyPlayed = MutableStateFlow<List<Song>>(emptyList())
     val recentlyPlayed: StateFlow<List<Song>> = _recentlyPlayed
 
-    val filteredSongs: StateFlow<List<Song>> = combine(_songs, _searchQuery) { songs, query ->
-        if (query.isBlank()) songs
+    val filteredSongs: StateFlow<List<Song>> = combine(_songs, _searchQuery, _sortOrder) { songs, query, sort ->
+        val filtered = if (query.isBlank()) songs
         else songs.filter { it.title.contains(query, true) || it.artist.contains(query, true) || it.album.contains(query, true) }
+        
+        when (sort) {
+            SortOrder.DATE_ADDED -> filtered.sortedByDescending { it.dateAdded }
+            SortOrder.TITLE -> filtered.sortedBy { it.title }
+            SortOrder.ARTIST -> filtered.sortedBy { it.artist }
+            SortOrder.MOST_PLAYED -> filtered.sortedByDescending { it.playCount }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private var repository: MusicRepository? = null
-    private var playbackManager: PlaybackManager? = null
+    val folders: StateFlow<Map<String, List<Song>>> = _songs.map { songs ->
+        songs.groupBy { it.parentFolder }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState
 
-    val controller: StateFlow<Player?> get() = playbackManager?.controller ?: MutableStateFlow(null)
+    private val _controller = MutableStateFlow<Player?>(null)
+    val controller: StateFlow<Player?> = _controller.asStateFlow()
 
     private var progressJob: Job? = null
+    private var sleepTimerJob: Job? = null
 
     data class PlaybackState(
         val isPlaying: Boolean = false,
@@ -56,19 +81,22 @@ class MusicViewModel : ViewModel() {
         val shuffleModeEnabled: Boolean = false,
         val repeatMode: Int = Player.REPEAT_MODE_OFF,
         val playbackSpeed: Float = 1.0f,
-        val currentSong: Song? = null
+        val currentSong: Song? = null,
+        val sleepTimerRemaining: Int? = null
     )
 
     fun init(context: Context) {
         if (repository == null) {
             repository = MusicRepository(context)
+        }
+        if (playbackManager == null) {
             playbackManager = PlaybackManager(context)
-            
             playbackManager?.init { player ->
+                _controller.value = player
                 setupControllerListener(player)
             }
-            loadStoredMetadata()
         }
+        loadStoredMetadata()
     }
 
     private fun loadStoredMetadata() {
@@ -102,6 +130,7 @@ class MusicViewModel : ViewModel() {
 
         if (currentSong != null && currentSong != _playbackState.value.currentSong) {
             addToRecentlyPlayed(currentSong)
+            incrementPlayCount(currentSong)
         }
 
         _playbackState.value = _playbackState.value.copy(
@@ -123,6 +152,17 @@ class MusicViewModel : ViewModel() {
         viewModelScope.launch { repository?.saveRecentlyPlayedIds(updated.map { it.id }) }
     }
 
+    private fun incrementPlayCount(song: Song) {
+        _songs.value = _songs.value.map { if (it.id == song.id) it.copy(playCount = it.playCount + 1) else it }
+        viewModelScope.launch {
+            repository?.let { repo ->
+                val counts = repo.getPlayCounts().first().toMutableMap()
+                counts[song.id] = (counts[song.id] ?: 0) + 1
+                repo.savePlayCounts(counts)
+            }
+        }
+    }
+
     private fun startProgressTracking(player: Player) {
         progressJob?.cancel()
         progressJob = viewModelScope.launch { while (true) { updatePlaybackState(player); delay(1000) } }
@@ -131,6 +171,7 @@ class MusicViewModel : ViewModel() {
     private fun stopProgressTracking() { progressJob?.cancel() }
 
     fun onSearchQueryChanged(query: String) { _searchQuery.value = query }
+    fun onSortOrderChanged(order: SortOrder) { _sortOrder.value = order }
 
     fun toggleFavorite(song: Song) {
         val updated = _songs.value.map { if (it.id == song.id) it.copy(isFavorite = !it.isFavorite) else it }
@@ -154,6 +195,40 @@ class MusicViewModel : ViewModel() {
     fun setPlaybackSpeed(speed: Float) = playbackManager?.setSpeed(speed)
     fun toggleRepeat() = playbackManager?.toggleRepeat()
 
+    fun setAsRingtone(context: Context, song: Song) {
+        if (Settings.System.canWrite(context)) {
+            try {
+                RingtoneManager.setActualDefaultRingtoneUri(context, RingtoneManager.TYPE_RINGTONE, song.contentUri)
+            } catch (e: Exception) { e.printStackTrace() }
+        } else {
+            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }
+    }
+
+    fun setSleepTimer(minutes: Int?) {
+        sleepTimerJob?.cancel()
+        if (minutes == null) {
+            _playbackState.value = _playbackState.value.copy(sleepTimerRemaining = null)
+            return
+        }
+
+        _playbackState.value = _playbackState.value.copy(sleepTimerRemaining = minutes)
+        sleepTimerJob = viewModelScope.launch {
+            var remaining = minutes
+            while (remaining > 0) {
+                delay(60000)
+                remaining--
+                _playbackState.value = _playbackState.value.copy(sleepTimerRemaining = remaining)
+            }
+            playbackManager?.pause()
+            _playbackState.value = _playbackState.value.copy(sleepTimerRemaining = null)
+        }
+    }
+
     fun createPlaylist(name: String) {
         val updated = _playlists.value + Playlist(name = name)
         _playlists.value = updated
@@ -166,11 +241,13 @@ class MusicViewModel : ViewModel() {
         viewModelScope.launch { repository?.savePlaylists(updated) }
     }
 
+    fun playExternalUri(uri: Uri) { playbackManager?.playUri(uri) }
+
     fun loadSongs(context: Context) {
         viewModelScope.launch {
             _isLoading.value = true
             _songs.value = repository?.fetchAllSongs() ?: emptyList()
-            loadStoredMetadata() // Re-sync logic
+            loadStoredMetadata()
             _isLoading.value = false
         }
     }
@@ -178,5 +255,6 @@ class MusicViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         playbackManager?.release()
+        sleepTimerJob?.cancel()
     }
 }

@@ -32,30 +32,50 @@ import androidx.navigation.navArgument
 import com.example.musicplayer.ui.*
 import com.example.musicplayer.ui.theme.MusicPlayerTheme
 import com.example.musicplayer.viewmodel.MusicViewModel
+import com.google.android.gms.ads.MobileAds
 
 class MainActivity : ComponentActivity() {
 
-    private val requestPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) showMusicPlayer() else showPermissionDenied()
+    private val requestPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        // Only the audio-read permission is essential for listing/playing songs; a denied
+        // POST_NOTIFICATIONS just means no media notification, not a blocked app.
+        val audioGranted = results[audioPermissionName()]
+            ?: (ContextCompat.checkSelfPermission(this, audioPermissionName()) == PackageManager.PERMISSION_GRANTED)
+        if (audioGranted) {
+            showMusicPlayer()
+        } else {
+            showPermissionDenied()
+        }
     }
+
+    private fun audioPermissionName(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Manifest.permission.READ_MEDIA_AUDIO
+        else Manifest.permission.READ_EXTERNAL_STORAGE
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        checkAudioPermission()
+        MobileAds.initialize(this) {}
+        checkRequiredPermissions()
     }
 
-    private fun checkAudioPermission() {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
+    private fun checkRequiredPermissions() {
+        val permissions = mutableListOf<String>()
+        permissions.add(audioPermissionName())
+
+        // Notification Permission (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+        val neededPermissions = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (neededPermissions.isEmpty()) {
             showMusicPlayer()
         } else {
-            requestPermission.launch(permission)
+            requestPermission.launch(neededPermissions.toTypedArray())
         }
     }
 
@@ -72,7 +92,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MusicPlayerTheme {
                 PermissionDeniedScreen(
-                    onTryAgain = { checkAudioPermission() },
+                    onTryAgain = { checkRequiredPermissions() },
                     onOpenSettings = {
                         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                             data = Uri.fromParts("package", packageName, null)
@@ -93,6 +113,14 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
     LaunchedEffect(Unit) {
         viewModel.init(context)
         viewModel.loadSongs(context)
+        
+        val intent = (context as? ComponentActivity)?.intent
+        if (intent?.action == Intent.ACTION_VIEW) {
+            intent.data?.let { uri ->
+                viewModel.playExternalUri(uri)
+                navController.navigate("full_player")
+            }
+        }
     }
 
     NavHost(navController = navController, startDestination = "song_list") {
@@ -110,7 +138,8 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
             PlaylistScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlaylistDetail = { id -> navController.navigate("playlist_detail/$id") }
+                onNavigateToPlaylistDetail = { id -> navController.navigate("playlist_detail/$id") },
+                onNavigateToPlayer = { navController.navigate("full_player") }
             )
         }
         composable(
@@ -137,7 +166,7 @@ fun PermissionDeniedScreen(onTryAgain: () -> Unit, onOpenSettings: () -> Unit) {
     ) {
         Icon(Icons.Default.MusicOff, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.secondary)
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Music permission is required to list your songs.", textAlign = TextAlign.Center)
+        Text("Required permissions are needed to list your songs and show the music player controls.", textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = onTryAgain, modifier = Modifier.fillMaxWidth()) { Text("Try Again") }
         TextButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Open Settings") }
