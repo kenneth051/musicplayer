@@ -41,7 +41,7 @@ fun MusicBottomBar(
             }
             
             Surface(
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             ) {
                 AdBanner()

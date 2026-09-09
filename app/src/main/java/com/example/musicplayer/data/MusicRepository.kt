@@ -74,4 +74,6 @@ class MusicRepository(private val context: Context) {
     suspend fun saveRecentlyPlayedIds(ids: List<Long>) = persistence.saveRecentlyPlayed(ids)
     fun getPlayCounts() = persistence.playCounts
     suspend fun savePlayCounts(counts: Map<Long, Int>) = persistence.savePlayCounts(counts)
+    fun getExcludeWhatsAppAudio() = persistence.excludeWhatsAppAudio
+    suspend fun saveExcludeWhatsAppAudio(exclude: Boolean) = persistence.saveExcludeWhatsAppAudio(exclude)
 }

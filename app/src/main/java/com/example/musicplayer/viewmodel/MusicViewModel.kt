@@ -45,12 +45,23 @@ class MusicViewModel(
     val sortOrder: StateFlow<SortOrder> = _sortOrder
 
     private val _recentlyPlayed = MutableStateFlow<List<Song>>(emptyList())
-    val recentlyPlayed: StateFlow<List<Song>> = _recentlyPlayed
 
-    val filteredSongs: StateFlow<List<Song>> = combine(_songs, _searchQuery, _sortOrder) { songs, query, sort ->
+    private val _excludeWhatsAppAudio = MutableStateFlow(true)
+    val excludeWhatsAppAudio: StateFlow<Boolean> = _excludeWhatsAppAudio
+
+    // Songs the user actually wants to see/play, after applying the WhatsApp audio exclusion -
+    // everything downstream (search/sort/folders/shuffle) builds on this rather than the raw
+    // scan result, so anything excluded from the library isn't just hidden from one list while
+    // still turning up in another. Matches both "WhatsApp Voice Notes" and "WhatsApp Audio"
+    // (shared audio files), and the "WhatsApp Business" variant of either.
+    private val effectiveSongs: StateFlow<List<Song>> = combine(_songs, _excludeWhatsAppAudio) { songs, exclude ->
+        if (exclude) songs.filterNot { it.parentFolder.contains("WhatsApp", ignoreCase = true) } else songs
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val filteredSongs: StateFlow<List<Song>> = combine(effectiveSongs, _searchQuery, _sortOrder) { songs, query, sort ->
         val filtered = if (query.isBlank()) songs
         else songs.filter { it.title.contains(query, true) || it.artist.contains(query, true) || it.album.contains(query, true) }
-        
+
         when (sort) {
             SortOrder.DATE_ADDED -> filtered.sortedByDescending { it.dateAdded }
             SortOrder.TITLE -> filtered.sortedBy { it.title }
@@ -59,9 +70,14 @@ class MusicViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val folders: StateFlow<Map<String, List<Song>>> = _songs.map { songs ->
+    val folders: StateFlow<Map<String, List<Song>>> = effectiveSongs.map { songs ->
         songs.groupBy { it.parentFolder }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val recentlyPlayed: StateFlow<List<Song>> = combine(_recentlyPlayed, effectiveSongs) { recent, songs ->
+        val effectiveIds = songs.map { it.id }.toSet()
+        recent.filter { it.id in effectiveIds }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState
@@ -105,8 +121,14 @@ class MusicViewModel(
                 _playlists.value = repo.getPlaylists().first()
                 val recentIds = repo.getRecentlyPlayedIds().first()
                 _recentlyPlayed.value = _songs.value.filter { it.id in recentIds }
+                _excludeWhatsAppAudio.value = repo.getExcludeWhatsAppAudio().first()
             }
         }
+    }
+
+    fun setExcludeWhatsAppAudio(exclude: Boolean) {
+        _excludeWhatsAppAudio.value = exclude
+        viewModelScope.launch { repository?.saveExcludeWhatsAppAudio(exclude) }
     }
 
     private fun setupControllerListener(player: Player) {
@@ -128,7 +150,10 @@ class MusicViewModel(
         val currentMediaId = player.currentMediaItem?.mediaId
         val currentSong = _songs.value.find { it.id.toString() == currentMediaId }
 
-        if (currentSong != null && currentSong != _playbackState.value.currentSong) {
+        // Compare by id, not full equality: incrementPlayCount()/toggleFavorite() replace the
+        // Song in _songs with a copy that differs in those fields, which would otherwise make
+        // this look like "a new song started" on every progress tick and re-fire below.
+        if (currentSong != null && currentSong.id != _playbackState.value.currentSong?.id) {
             addToRecentlyPlayed(currentSong)
             incrementPlayCount(currentSong)
         }
@@ -147,7 +172,7 @@ class MusicViewModel(
     }
 
     private fun addToRecentlyPlayed(song: Song) {
-        val updated = (_recentlyPlayed.value.toMutableList().apply { remove(song); add(0, song) }).take(20)
+        val updated = (_recentlyPlayed.value.toMutableList().apply { removeAll { it.id == song.id }; add(0, song) }).take(20)
         _recentlyPlayed.value = updated
         viewModelScope.launch { repository?.saveRecentlyPlayedIds(updated.map { it.id }) }
     }
@@ -179,8 +204,8 @@ class MusicViewModel(
         viewModelScope.launch { repository?.saveFavorites(updated.filter { it.isFavorite }.map { it.id }.toSet()) }
     }
 
-    fun playSong(song: Song) = playbackManager?.play(_songs.value, _songs.value.indexOf(song), false)
-    fun shuffleAll() = playbackManager?.play(_songs.value, 0, true)
+    fun playSong(song: Song) = effectiveSongs.value.let { songs -> playbackManager?.play(songs, songs.indexOf(song), false) }
+    fun shuffleAll() = playbackManager?.play(effectiveSongs.value, 0, true)
     
     fun playPlaylist(playlist: Playlist, song: Song? = null) {
         val list = _songs.value.filter { it.id in playlist.songIds }

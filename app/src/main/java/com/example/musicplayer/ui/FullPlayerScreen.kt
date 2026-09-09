@@ -117,6 +117,14 @@ fun FullPlayerScreen(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
         },
+        bottomBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ) {
+                AdBanner()
+            }
+        },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
         val surfaceColor = MaterialTheme.colorScheme.surface

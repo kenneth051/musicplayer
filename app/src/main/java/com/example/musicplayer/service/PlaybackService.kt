@@ -26,6 +26,7 @@ class PlaybackService : MediaSessionService() {
     private var pendingClickCount = 0
     private val resolveClicksRunnable = Runnable { resolveHeadsetClicks() }
 
+    @OptIn(UnstableApi::class)
     private fun resolveHeadsetClicks() {
         val player = mediaSession?.player as? SmartForwardingPlayer
         val clickCount = pendingClickCount
@@ -79,12 +80,15 @@ class PlaybackService : MediaSessionService() {
                 ): MediaSession.ConnectionResult {
                     val availablePlayerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
                         .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                        .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
                         .add(Player.COMMAND_SEEK_TO_NEXT)
+                        .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
                         .build()
-                        
+
                     return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                         .setAvailablePlayerCommands(availablePlayerCommands)
                         .build()
+                }
 
                 @OptIn(UnstableApi::class)
                 override fun onMediaButtonEvent(

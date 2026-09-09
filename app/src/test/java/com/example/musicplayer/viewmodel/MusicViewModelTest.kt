@@ -31,6 +31,7 @@ class MusicViewModelTest {
         
         coEvery { repository.getPlaylists() } returns flowOf(emptyList())
         coEvery { repository.getRecentlyPlayedIds() } returns flowOf(emptyList())
+        coEvery { repository.getExcludeWhatsAppAudio() } returns flowOf(true)
         coEvery { repository.fetchAllSongs() } returns emptyList()
         
         viewModel = MusicViewModel(repository, playbackManager)

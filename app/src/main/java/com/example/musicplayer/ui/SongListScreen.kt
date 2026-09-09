@@ -41,19 +41,38 @@ fun SongListScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
-    
+    val excludeWhatsAppAudio by viewModel.excludeWhatsAppAudio.collectAsState()
+
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showSettingsMenu by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf<Song?>(null) }
 
     Scaffold(
         topBar = {
             Column {
                 CenterAlignedTopAppBar(
-                    title = { Text("My Music", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                    title = { Text("Vibe Music Player", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
                     actions = {
                         IconButton(onClick = onNavigateToPlaylists) {
                             Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists")
+                        }
+                        Box {
+                            IconButton(onClick = { showSettingsMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Settings")
+                            }
+                            DropdownMenu(expanded = showSettingsMenu, onDismissRequest = { showSettingsMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Exclude WhatsApp audio") },
+                                    onClick = { viewModel.setExcludeWhatsAppAudio(!excludeWhatsAppAudio) },
+                                    trailingIcon = {
+                                        Checkbox(
+                                            checked = excludeWhatsAppAudio,
+                                            onCheckedChange = { viewModel.setExcludeWhatsAppAudio(it) }
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 )

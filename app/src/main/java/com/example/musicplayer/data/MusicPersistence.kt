@@ -1,6 +1,7 @@
 package com.example.musicplayer.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -18,6 +19,7 @@ class MusicPersistence(private val context: Context) {
     private val PLAYLISTS_KEY = stringPreferencesKey("playlists")
     private val RECENTLY_PLAYED_KEY = stringPreferencesKey("recently_played")
     private val PLAY_COUNTS_KEY = stringPreferencesKey("play_counts")
+    private val EXCLUDE_WHATSAPP_AUDIO_KEY = booleanPreferencesKey("exclude_whatsapp_audio")
 
     val favorites: Flow<Set<Long>> = context.dataStore.data.map { prefs ->
         val json = prefs[FAVORITES_KEY] ?: "[]"
@@ -64,6 +66,16 @@ class MusicPersistence(private val context: Context) {
     suspend fun savePlayCounts(counts: Map<Long, Int>) {
         context.dataStore.edit { prefs ->
             prefs[PLAY_COUNTS_KEY] = gson.toJson(counts)
+        }
+    }
+
+    val excludeWhatsAppAudio: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[EXCLUDE_WHATSAPP_AUDIO_KEY] ?: true
+    }
+
+    suspend fun saveExcludeWhatsAppAudio(exclude: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[EXCLUDE_WHATSAPP_AUDIO_KEY] = exclude
         }
     }
 }

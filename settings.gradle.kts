@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Music player"
+rootProject.name = "Vibe Music Player"
 include(":app")

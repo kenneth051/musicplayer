@@ -10,37 +10,42 @@ import androidx.media3.common.util.UnstableApi
  */
 @OptIn(UnstableApi::class)
 class SmartForwardingPlayer(basePlayer: Player) : ForwardingPlayer(basePlayer) {
+
     override fun seekToPrevious() {
-        val wasPlaying = isPlaying
+        processPreviousAction()
+    }
+
+    override fun seekToPreviousMediaItem() {
+        processPreviousAction()
+    }
+
+    fun processPreviousAction() {
+        // Use playWhenReady (not isPlaying) so buffering right at the moment of the click
+        // doesn't get misread as "wasn't playing" and skip the resume-play step.
+        val shouldBePlaying = playWhenReady
         val currentPos = currentPosition
-        
+
         if (currentPos > 3000) {
             // Rule 1: > 3 seconds, just restart the song
             seekTo(0)
         } else {
             // Rule 2: < 3 seconds, go to actual previous song
-            seekToPreviousMediaItem()
+            super.seekToPreviousMediaItem()
         }
 
-        // Rule 3: Crucial Detail - keep playing if it was playing
-        if (wasPlaying) {
+        // Rule 3: Crucial Detail - force play state if it was playing
+        if (shouldBePlaying) {
             play()
         }
     }
 
-    override fun seekToPreviousMediaItem() {
-        val wasPlaying = isPlaying
-        super.seekToPreviousMediaItem()
-        if (wasPlaying) {
-            play()
-        }
-    }
+    override fun seekToNext() = keepingPlayState { super.seekToNext() }
 
-    override fun seekToNextMediaItem() {
-        val wasPlaying = isPlaying
-        super.seekToNextMediaItem()
-        if (wasPlaying) {
-            play()
-        }
+    override fun seekToNextMediaItem() = keepingPlayState { super.seekToNextMediaItem() }
+
+    private inline fun keepingPlayState(action: () -> Unit) {
+        val wasPlaying = playWhenReady
+        action()
+        if (wasPlaying) play()
     }
 }

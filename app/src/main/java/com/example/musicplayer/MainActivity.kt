@@ -166,7 +166,7 @@ fun PermissionDeniedScreen(onTryAgain: () -> Unit, onOpenSettings: () -> Unit) {
     ) {
         Icon(Icons.Default.MusicOff, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.secondary)
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Required permissions are needed to list your songs and show the music player controls.", textAlign = TextAlign.Center)
+        Text("Required permissions are needed to list your songs and show the Vibe Music Player controls.", textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = onTryAgain, modifier = Modifier.fillMaxWidth()) { Text("Try Again") }
         TextButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Open Settings") }
