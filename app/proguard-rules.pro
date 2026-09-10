@@ -1,19 +1,34 @@
-# Gson uses generic type information stored in a class file when working with fields.
-# R8 removes such information by default, so it must be kept explicitly - without this,
-# the TypeToken<Set<Long>>/TypeToken<List<Long>>/TypeToken<Map<Long, Int>> usages in
-# MusicPersistence would deserialize incorrectly (or crash) in a release build.
+# Gson: Prevent obfuscation of Generic types and model classes
 -keepattributes Signature
 -keepattributes *Annotation*
-
 -keep class com.google.gson.reflect.TypeToken
 -keep class * extends com.google.gson.reflect.TypeToken
-
 -keep class * implements com.google.gson.TypeAdapterFactory
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
-
-# Favorites/playlists/recently-played/play-counts are all Gson-serialized to DataStore by
-# field name; keep these model classes intact so persisted JSON keeps round-tripping after
-# a release build renames/strips "unused-looking" fields.
 -keep class com.example.musicplayer.data.Song { *; }
 -keep class com.example.musicplayer.data.Playlist { *; }
+
+# Media3: Prevent obfuscation of Service and Player components
+# The PlaybackService is referenced by class name in the Manifest and during session binding.
+-keep class com.example.musicplayer.service.PlaybackService { *; }
+-keep class com.example.musicplayer.service.SmartForwardingPlayer { *; }
+
+# Prevent stripping of Media3 internal components that use reflection
+-keep class androidx.media3.common.** { *; }
+-keep class androidx.media3.exoplayer.** { *; }
+-keep class androidx.media3.session.** { *; }
+
+# Google Play Services (Ads)
+-keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.ads.** { *; }
+
+# Coil: Image loading
+-keep class coil.** { *; }
+
+# Palette API
+-keep class androidx.palette.graphics.** { *; }
+
+# General optimization rules
+-dontwarn com.google.android.gms.ads.**
+-dontwarn androidx.media3.**
