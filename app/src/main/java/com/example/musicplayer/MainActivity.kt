@@ -128,7 +128,10 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
             SongListScreen(
                 viewModel = viewModel,
                 onNavigateToPlayer = { navController.navigate("full_player") },
-                onNavigateToPlaylists = { navController.navigate("playlists") }
+                onNavigateToPlaylists = { navController.navigate("playlists") },
+                onNavigateToFolder = { folderName ->
+                    navController.navigate("folder_detail/${Uri.encode(folderName)}")
+                }
             )
         }
         composable("full_player") {
@@ -150,6 +153,18 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
             PlaylistDetailScreen(
                 viewModel = viewModel,
                 playlistId = playlistId,
+                onBack = { navController.popBackStack() },
+                onNavigateToPlayer = { navController.navigate("full_player") }
+            )
+        }
+        composable(
+            route = "folder_detail/{folderName}",
+            arguments = listOf(navArgument("folderName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val folderName = backStackEntry.arguments?.getString("folderName")?.let { Uri.decode(it) } ?: return@composable
+            FolderDetailScreen(
+                viewModel = viewModel,
+                folderName = folderName,
                 onBack = { navController.popBackStack() },
                 onNavigateToPlayer = { navController.navigate("full_player") }
             )

@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -33,8 +34,10 @@ import com.example.musicplayer.viewmodel.MusicViewModel
 fun SongListScreen(
     viewModel: MusicViewModel,
     onNavigateToPlayer: () -> Unit,
-    onNavigateToPlaylists: () -> Unit
+    onNavigateToPlaylists: () -> Unit,
+    onNavigateToFolder: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val songs by viewModel.filteredSongs.collectAsState()
     val folders by viewModel.folders.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
@@ -62,6 +65,15 @@ fun SongListScreen(
                                 Icon(Icons.Default.MoreVert, contentDescription = "Settings")
                             }
                             DropdownMenu(expanded = showSettingsMenu, onDismissRequest = { showSettingsMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Scan for songs") },
+                                    enabled = !isLoading,
+                                    onClick = {
+                                        viewModel.loadSongs(context)
+                                        showSettingsMenu = false
+                                    },
+                                    trailingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
+                                )
                                 DropdownMenuItem(
                                     text = { Text("Exclude WhatsApp audio") },
                                     onClick = { viewModel.setExcludeWhatsAppAudio(!excludeWhatsAppAudio) },
@@ -171,7 +183,7 @@ fun SongListScreen(
                     items(folders.keys.toList()) { folderName ->
                         val folderSongs = folders[folderName] ?: emptyList()
                         ListItem(
-                            modifier = Modifier.clickable { /* We could navigate to a folder detail screen later */ },
+                            modifier = Modifier.clickable { onNavigateToFolder(folderName) },
                             headlineContent = { Text(folderName) },
                             supportingContent = { Text("${folderSongs.size} songs") },
                             leadingContent = { Icon(Icons.Default.Folder, null, tint = MaterialTheme.colorScheme.primary) },

@@ -2,8 +2,12 @@ package com.example.musicplayer.viewmodel
 
 import android.content.Context
 import android.content.Intent
+import android.database.ContentObserver
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -87,6 +91,10 @@ class MusicViewModel(
 
     private var progressJob: Job? = null
     private var sleepTimerJob: Job? = null
+    private var refreshJob: Job? = null
+
+    private var appContext: Context? = null
+    private var mediaStoreObserver: ContentObserver? = null
 
     data class PlaybackState(
         val isPlaying: Boolean = false,
@@ -112,7 +120,34 @@ class MusicViewModel(
                 setupControllerListener(player)
             }
         }
+        if (mediaStoreObserver == null) {
+            appContext = context.applicationContext
+            registerMediaStoreObserver()
+        }
         loadStoredMetadata()
+    }
+
+    // Catches library changes made outside the app - a rename, an ID3 tag edit, a file added
+    // or deleted via another app - so the song list stays in sync without the user having to
+    // force-restart the app. MediaStore can fire several notifications in quick succession for
+    // a single change, so the actual reload is debounced.
+    private fun registerMediaStoreObserver() {
+        val context = appContext ?: return
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                refreshJob?.cancel()
+                refreshJob = viewModelScope.launch {
+                    delay(800)
+                    loadSongs(context)
+                }
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            true,
+            observer
+        )
+        mediaStoreObserver = observer
     }
 
     private fun loadStoredMetadata() {
@@ -281,5 +316,7 @@ class MusicViewModel(
         super.onCleared()
         playbackManager?.release()
         sleepTimerJob?.cancel()
+        refreshJob?.cancel()
+        mediaStoreObserver?.let { appContext?.contentResolver?.unregisterContentObserver(it) }
     }
 }

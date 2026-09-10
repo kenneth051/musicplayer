@@ -43,10 +43,11 @@ class MusicRepository(private val context: Context) {
                 val id = cursor.getLong(idCol)
                 val albId = cursor.getLong(albIdCol)
                 val filePath = cursor.getString(dataCol)
-                val parentFolder = File(filePath).parentFile?.name ?: "Unknown"
-                
+                val file = File(filePath)
+                val parentFolder = file.parentFile?.name ?: "Unknown"
+
                 val artUri = Uri.parse("content://media/external/audio/albumart/$albId")
-                
+
                 songList.add(Song(
                     id = id,
                     title = cursor.getString(titleCol) ?: "Unknown",
