@@ -16,16 +16,14 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.example.musicplayer"
-    compileSdk {
-        version = release(37)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.neth.vibemusicplayer"
         minSdk = 24
-        targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = 9
+        versionName = "1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -46,9 +44,10 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            optimization {
-                enable = true
-            }
+            // Disabling minification temporarily to rule out R8/ProGuard crashes
+            isMinifyEnabled = false
+            isShrinkResources = false
+            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -81,10 +80,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-ads:23.6.0")
     implementation("androidx.palette:palette:1.0.0")
     implementation("androidx.palette:palette-ktx:1.0.0")
-    // Forces a compatible Fragment version: play-services-ads pulls in fragment 1.1.0
-    // transitively, which is below the 1.3.0 registerForActivityResult requires to reliably
-    // deliver permission-request callbacks.
+    // Forces a compatible Fragment version to prevent crashes with registerForActivityResult in Release
     implementation("androidx.fragment:fragment-ktx:1.8.5")
+    implementation("androidx.activity:activity-ktx:1.9.3")
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

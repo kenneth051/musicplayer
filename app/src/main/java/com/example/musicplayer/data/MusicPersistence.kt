@@ -17,6 +17,7 @@ class MusicPersistence(private val context: Context) {
     
     private val FAVORITES_KEY = stringPreferencesKey("favorites")
     private val PLAYLISTS_KEY = stringPreferencesKey("playlists")
+    private val QUEUES_KEY = stringPreferencesKey("queues")
     private val RECENTLY_PLAYED_KEY = stringPreferencesKey("recently_played")
     private val PLAY_COUNTS_KEY = stringPreferencesKey("play_counts")
     private val EXCLUDE_WHATSAPP_AUDIO_KEY = booleanPreferencesKey("exclude_whatsapp_audio")
@@ -42,6 +43,18 @@ class MusicPersistence(private val context: Context) {
     suspend fun savePlaylists(playlists: List<Playlist>) {
         context.dataStore.edit { prefs ->
             prefs[PLAYLISTS_KEY] = gson.toJson(playlists)
+        }
+    }
+
+    val queues: Flow<List<Queue>> = context.dataStore.data.map { prefs ->
+        val json = prefs[QUEUES_KEY] ?: "[]"
+        val type = object : TypeToken<List<Queue>>() {}.type
+        gson.fromJson(json, type)
+    }
+
+    suspend fun saveQueues(queues: List<Queue>) {
+        context.dataStore.edit { prefs ->
+            prefs[QUEUES_KEY] = gson.toJson(queues)
         }
     }
 

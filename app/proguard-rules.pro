@@ -1,34 +1,29 @@
-# Gson: Prevent obfuscation of Generic types and model classes
--keepattributes Signature
--keepattributes *Annotation*
+# 1. COMPLETELY PROTECT YOUR APP CODE
+-keep class com.example.musicplayer.** { *; }
+-keep interface com.example.musicplayer.** { *; }
+-keep enum com.example.musicplayer.** { *; }
+
+# 2. PROTECT ALL ANDROIDX & JETPACK (The safest way to avoid launch crashes)
+-keep class androidx.** { *; }
+-keep interface androidx.** { *; }
+-dontwarn androidx.**
+
+# 3. PROTECT GOOGLE SERVICES & ADS
+-keep class com.google.android.gms.** { *; }
+-keep class com.google.ads.** { *; }
+-dontwarn com.google.android.gms.**
+
+# 4. PROTECT DATA PERSISTENCE (GSON)
+-keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
+-keep class com.google.gson.** { *; }
 -keep class com.google.gson.reflect.TypeToken
 -keep class * extends com.google.gson.reflect.TypeToken
--keep class * implements com.google.gson.TypeAdapterFactory
--keep class * implements com.google.gson.JsonSerializer
--keep class * implements com.google.gson.JsonDeserializer
--keep class com.example.musicplayer.data.Song { *; }
--keep class com.example.musicplayer.data.Playlist { *; }
 
-# Media3: Prevent obfuscation of Service and Player components
-# The PlaybackService is referenced by class name in the Manifest and during session binding.
--keep class com.example.musicplayer.service.PlaybackService { *; }
--keep class com.example.musicplayer.service.SmartForwardingPlayer { *; }
+# 5. PROTECT MEDIA3 & AUDIO
+-keep class com.google.android.exoplayer2.** { *; }
+-dontwarn com.google.android.exoplayer2.**
 
-# Prevent stripping of Media3 internal components that use reflection
--keep class androidx.media3.common.** { *; }
--keep class androidx.media3.exoplayer.** { *; }
--keep class androidx.media3.session.** { *; }
-
-# Google Play Services (Ads)
--keep class com.google.android.gms.ads.** { *; }
--keep class com.google.ads.** { *; }
-
-# Coil: Image loading
--keep class coil.** { *; }
-
-# Palette API
--keep class androidx.palette.graphics.** { *; }
-
-# General optimization rules
--dontwarn com.google.android.gms.ads.**
--dontwarn androidx.media3.**
+# 6. DISABLE OPTIMIZATIONS (The "Nuclear Option" for stability)
+# If the app still crashes, disabling optimizations ensures the logic isn't "rewritten"
+-dontoptimize
+-dontobfuscate

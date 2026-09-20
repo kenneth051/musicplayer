@@ -193,34 +193,35 @@ fun FullPlayerScreen(
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                val transportColor = onDominantColor
                 val shuffleTooltipState = rememberTooltipState()
                 val shuffleText = if (state.shuffleModeEnabled) "Shuffle On" else "Shuffle Off"
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(shuffleText) } }, state = shuffleTooltipState) {
                     IconButton(onClick = { viewModel.toggleShuffle(); scope.launch { shuffleTooltipState.show() } }) {
-                        Icon(Icons.Default.Shuffle, shuffleText, tint = if (state.shuffleModeEnabled) dominantColor else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Shuffle, shuffleText, tint = if (state.shuffleModeEnabled) transportColor else transportColor.copy(alpha = 0.55f))
                     }
                 }
 
                 IconButton(onClick = { viewModel.skipPrevious() }, modifier = Modifier.size(56.dp)) {
-                    Icon(Icons.Default.SkipPrevious, null, modifier = Modifier.size(40.dp))
+                    Icon(Icons.Default.SkipPrevious, null, modifier = Modifier.size(40.dp), tint = transportColor)
                 }
 
-                LargeFloatingActionButton(
+                FloatingActionButton(
                     onClick = { viewModel.togglePlayPause() },
                     shape = CircleShape,
-                    containerColor = dominantColor.copy(alpha = 0.2f),
-                    contentColor = Color.White
+                    containerColor = dominantColor,
+                    contentColor = onDominantColor
                 ) {
                     Icon(
                         imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (state.isPlaying) "Pause" else "Play",
                         modifier = Modifier.size(48.dp),
-                        tint = Color.White
+                        tint = onDominantColor
                     )
                 }
 
                 IconButton(onClick = { viewModel.skipNext() }, modifier = Modifier.size(56.dp)) {
-                    Icon(Icons.Default.SkipNext, null, modifier = Modifier.size(40.dp))
+                    Icon(Icons.Default.SkipNext, null, modifier = Modifier.size(40.dp), tint = transportColor)
                 }
 
                 val repeatTooltipState = rememberTooltipState()
@@ -228,7 +229,7 @@ fun FullPlayerScreen(
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(repeatText) } }, state = repeatTooltipState) {
                     IconButton(onClick = { viewModel.toggleRepeat(); scope.launch { repeatTooltipState.show() } }) {
                         val icon = when (state.repeatMode) { Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne; Player.REPEAT_MODE_ALL -> Icons.Default.Repeat; else -> Icons.Default.Repeat }
-                        Icon(icon, repeatText, tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) dominantColor else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(icon, repeatText, tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) transportColor else transportColor.copy(alpha = 0.55f))
                     }
                 }
             }

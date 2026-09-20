@@ -24,7 +24,8 @@ class MusicRepository(private val context: Context) {
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.Audio.Media.DATA // Used for folder path
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.RELATIVE_PATH
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
@@ -37,14 +38,19 @@ class MusicRepository(private val context: Context) {
             val albCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val albIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
-            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+            val relativePathCol = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val albId = cursor.getLong(albIdCol)
-                val filePath = cursor.getString(dataCol)
-                val file = File(filePath)
-                val parentFolder = file.parentFile?.name ?: "Unknown"
+                val rawPath = if (dataCol >= 0) cursor.getString(dataCol) else null
+                val relativePath = if (relativePathCol >= 0) cursor.getString(relativePathCol) else null
+                val parentFolder = when {
+                    !rawPath.isNullOrBlank() -> runCatching { File(rawPath).parentFile?.name }.getOrNull() ?: "Unknown"
+                    !relativePath.isNullOrBlank() -> relativePath.trim('/').substringAfterLast('/').ifBlank { "Unknown" }
+                    else -> "Unknown"
+                }
 
                 val artUri = Uri.parse("content://media/external/audio/albumart/$albId")
 
@@ -62,7 +68,6 @@ class MusicRepository(private val context: Context) {
             }
         }
 
-        // Apply saved favorites and play counts
         val favIds = persistence.favorites.first()
         val playCounts = persistence.playCounts.first()
         songList.map { it.copy(isFavorite = it.id in favIds, playCount = playCounts[it.id] ?: 0) }
@@ -71,6 +76,8 @@ class MusicRepository(private val context: Context) {
     suspend fun saveFavorites(favIds: Set<Long>) = persistence.saveFavorites(favIds)
     fun getPlaylists() = persistence.playlists
     suspend fun savePlaylists(playlists: List<Playlist>) = persistence.savePlaylists(playlists)
+    fun getQueues() = persistence.queues
+    suspend fun saveQueues(queues: List<Queue>) = persistence.saveQueues(queues)
     fun getRecentlyPlayedIds() = persistence.recentlyPlayed
     suspend fun saveRecentlyPlayedIds(ids: List<Long>) = persistence.saveRecentlyPlayed(ids)
     fun getPlayCounts() = persistence.playCounts

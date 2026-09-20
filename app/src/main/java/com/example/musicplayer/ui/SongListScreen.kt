@@ -1,20 +1,26 @@
 package com.example.musicplayer.ui
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import android.widget.Toast
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -23,33 +29,44 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.example.musicplayer.R
 import com.example.musicplayer.data.Playlist
 import com.example.musicplayer.data.Song
 import com.example.musicplayer.viewmodel.MusicViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongListScreen(
     viewModel: MusicViewModel,
     onNavigateToPlayer: () -> Unit,
-    onNavigateToPlaylists: () -> Unit,
-    onNavigateToFolder: (String) -> Unit
+    onNavigateToFolder: (String) -> Unit,
+    onNavigateToPlaylistDetail: (String) -> Unit
 ) {
     val context = LocalContext.current
     val songs by viewModel.filteredSongs.collectAsState()
     val folders by viewModel.folders.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    val activeQueue by viewModel.activeQueue.collectAsState()
+    val playbackState by viewModel.playbackState.collectAsState()
+    val controller by viewModel.controller.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
     val excludeWhatsAppAudio by viewModel.excludeWhatsAppAudio.collectAsState()
+    val favoriteSongs = songs.filter { it.isFavorite }
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showSettingsMenu by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf<Song?>(null) }
+    var showQueueDialog by remember { mutableStateOf<Song?>(null) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -57,9 +74,6 @@ fun SongListScreen(
                 CenterAlignedTopAppBar(
                     title = { Text("Vibe Music Player", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
                     actions = {
-                        IconButton(onClick = onNavigateToPlaylists) {
-                            Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists")
-                        }
                         Box {
                             IconButton(onClick = { showSettingsMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "Settings")
@@ -114,11 +128,20 @@ fun SongListScreen(
                 TabRow(selectedTabIndex = selectedTab) {
                     Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Songs") })
                     Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Folders") })
+                    Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Playlists") })
+                    Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("Queue") })
                 }
             }
         },
         bottomBar = {
             MusicBottomBar(viewModel = viewModel, onNavigateToPlayer = onNavigateToPlayer)
+        },
+        floatingActionButton = {
+            if (selectedTab == 2) {
+                FloatingActionButton(onClick = { showCreatePlaylistDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Create Playlist")
+                }
+            }
         }
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
@@ -173,11 +196,20 @@ fun SongListScreen(
                         }
 
                         items(songs, key = { it.id }) { song ->
-                            SongListItem(song = song, onClick = { viewModel.playSong(song) }, onAddToPlaylist = { showPlaylistDialog = song }, onToggleFavorite = { viewModel.toggleFavorite(song) })
+                            SongListItem(
+                                song = song,
+                                onClick = { viewModel.playSong(song) },
+                                onAddToPlaylist = { showPlaylistDialog = song },
+                                onAddToQueue = {
+                                    viewModel.addSongToQueue(song)
+                                    Toast.makeText(context, "${song.title} added to queue", Toast.LENGTH_SHORT).show()
+                                },
+                                onToggleFavorite = { viewModel.toggleFavorite(song) }
+                            )
                         }
                     }
                 }
-            } else {
+            } else if (selectedTab == 1) {
                 // Folders List
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(folders.keys.toList()) { folderName ->
@@ -200,12 +232,159 @@ fun SongListScreen(
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     }
                 }
+            } else if (selectedTab == 2) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item {
+                        ListItem(
+                            modifier = Modifier.clickable { onNavigateToPlaylistDetail("favorites") },
+                            headlineContent = { Text("Favorites") },
+                            supportingContent = { Text("${favoriteSongs.size} songs") },
+                            leadingContent = { Icon(Icons.Default.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                        )
+                        HorizontalDivider()
+                    }
+
+                    if (playlists.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No playlists created yet.")
+                            }
+                        }
+                    } else {
+                        items(playlists, key = { it.id }) { playlist ->
+                            ListItem(
+                                modifier = Modifier.clickable { onNavigateToPlaylistDetail(playlist.id) },
+                                headlineContent = { Text(playlist.name) },
+                                supportingContent = { Text("${playlist.songIds.size} songs") },
+                                leadingContent = { Icon(Icons.Default.LibraryMusic, contentDescription = null) }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            } else if (selectedTab == 3) {
+                // Active Queue List
+                val currentSongIndex = controller?.currentMediaItemIndex ?: -1
+
+                // 'Up Next' are items after the current playback index
+                val upNext = remember(activeQueue, currentSongIndex) {
+                    if (currentSongIndex == -1) {
+                        if (activeQueue.isNotEmpty()) activeQueue else emptyList()
+                    } else {
+                        activeQueue.drop(currentSongIndex + 1)
+                    }
+                }
+
+                val lazyListState = rememberLazyListState()
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = lazyListState
+                ) {
+                    if (playbackState.currentSong != null) {
+                        item(key = "header_now_playing") {
+                            Text(
+                                "Now Playing",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        item(key = "current_song_item") {
+                            SongListItem(
+                                song = playbackState.currentSong!!,
+                                onClick = { onNavigateToPlayer() },
+                                onAddToPlaylist = { showPlaylistDialog = playbackState.currentSong },
+                                onAddToQueue = { /* Already in queue */ },
+                                onToggleFavorite = { viewModel.toggleFavorite(playbackState.currentSong!!) }
+                            )
+                        }
+                        item(key = "divider_now_playing") {
+                            HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        }
+                    }
+
+                    if (upNext.isEmpty()) {
+                        item(key = "empty_queue_msg") {
+                            Box(
+                                modifier = Modifier.fillParentMaxSize().padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Queue is empty.")
+                            }
+                        }
+                    } else {
+                        item(key = "header_up_next") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Up Next",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                                TextButton(onClick = { viewModel.clearActiveQueue() }) {
+                                    Text("Clear")
+                                }
+                            }
+                        }
+
+                        items(upNext, key = { it.queueId }) { item ->
+                            val song = item.song
+
+                            ListItem(
+                                modifier = Modifier
+                                    .animateItem()
+                                    .clickable { viewModel.playFromActiveQueue(item) },
+                                headlineContent = { Text(song.title) },
+                                supportingContent = { Text(song.artist) },
+                                leadingContent = {
+                                    Surface(modifier = Modifier.size(40.dp), shape = MaterialTheme.shapes.small) {
+                                        AsyncImage(
+                                            model = song.albumArtUri,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                            error = painterResource(R.drawable.ic_default_art),
+                                            placeholder = painterResource(R.drawable.ic_default_art)
+                                        )
+                                    }
+                                },
+                                trailingContent = {
+                                    IconButton(onClick = { viewModel.removeFromActiveQueue(item) }) {
+                                        Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove from Queue")
+                                    }
+                                }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+                }
             }
         }
     }
 
     showPlaylistDialog?.let { song ->
         AddToPlaylistDialog(viewModel = viewModel, song = song, onDismiss = { showPlaylistDialog = null })
+    }
+
+    showQueueDialog?.let { song ->
+        AddToQueueDialog(viewModel = viewModel, song = song, onDismiss = { showQueueDialog = null })
+    }
+
+    if (showCreatePlaylistDialog) {
+        CreatePlaylistDialog(
+            onCreate = { name ->
+                viewModel.createPlaylist(name)
+                showCreatePlaylistDialog = false
+            },
+            onDismiss = { showCreatePlaylistDialog = false }
+        )
     }
 }
 
@@ -234,7 +413,13 @@ fun RecentSongCard(song: Song, onClick: () -> Unit) {
 }
 
 @Composable
-fun SongListItem(song: Song, onClick: () -> Unit, onAddToPlaylist: () -> Unit, onToggleFavorite: () -> Unit) {
+fun SongListItem(
+    song: Song,
+    onClick: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onToggleFavorite: () -> Unit
+) {
     ListItem(
         modifier = Modifier.clickable { onClick() },
         headlineContent = { Text(song.title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -242,9 +427,9 @@ fun SongListItem(song: Song, onClick: () -> Unit, onAddToPlaylist: () -> Unit, o
         leadingContent = {
             Surface(modifier = Modifier.size(56.dp), shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant) {
                 AsyncImage(
-                    model = song.albumArtUri, 
-                    contentDescription = null, 
-                    modifier = Modifier.fillMaxSize(), 
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                     error = painterResource(R.drawable.ic_default_art),
                     placeholder = painterResource(R.drawable.ic_default_art)
@@ -256,8 +441,23 @@ fun SongListItem(song: Song, onClick: () -> Unit, onAddToPlaylist: () -> Unit, o
                 IconButton(onClick = onToggleFavorite) {
                     Icon(imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = "Favorite", tint = if (song.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = onAddToPlaylist) {
-                    Icon(imageVector = Icons.Default.PlaylistAdd, contentDescription = "Add to Playlist")
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(imageVector = Icons.Default.MoreVert, contentDescription = "More Options")
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Add to Queue") },
+                            onClick = { onAddToQueue(); showMenu = false },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add to Playlist") },
+                            onClick = { onAddToPlaylist(); showMenu = false },
+                            leadingIcon = { Icon(Icons.Default.LibraryMusic, null) }
+                        )
+                    }
                 }
             }
         }

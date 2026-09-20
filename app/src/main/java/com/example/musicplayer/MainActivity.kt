@@ -128,22 +128,16 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
             SongListScreen(
                 viewModel = viewModel,
                 onNavigateToPlayer = { navController.navigate("full_player") },
-                onNavigateToPlaylists = { navController.navigate("playlists") },
                 onNavigateToFolder = { folderName ->
                     navController.navigate("folder_detail/${Uri.encode(folderName)}")
+                },
+                onNavigateToPlaylistDetail = { id ->
+                    navController.navigate("playlist_detail/$id")
                 }
             )
         }
         composable("full_player") {
             FullPlayerScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("playlists") {
-            PlaylistScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onNavigateToPlaylistDetail = { id -> navController.navigate("playlist_detail/$id") },
-                onNavigateToPlayer = { navController.navigate("full_player") }
-            )
         }
         composable(
             route = "playlist_detail/{playlistId}",
@@ -153,6 +147,18 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
             PlaylistDetailScreen(
                 viewModel = viewModel,
                 playlistId = playlistId,
+                onBack = { navController.popBackStack() },
+                onNavigateToPlayer = { navController.navigate("full_player") }
+            )
+        }
+        composable(
+            route = "queue_detail/{queueId}",
+            arguments = listOf(navArgument("queueId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val queueId = backStackEntry.arguments?.getString("queueId") ?: return@composable
+            QueueDetailScreen(
+                viewModel = viewModel,
+                queueId = queueId,
                 onBack = { navController.popBackStack() },
                 onNavigateToPlayer = { navController.navigate("full_player") }
             )

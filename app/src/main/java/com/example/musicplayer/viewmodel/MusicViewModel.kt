@@ -14,8 +14,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import com.example.musicplayer.data.MusicRepository
 import com.example.musicplayer.data.Playlist
+import com.example.musicplayer.data.Queue
+import com.example.musicplayer.data.QueueItem
 import com.example.musicplayer.data.Song
 import com.example.musicplayer.player.PlaybackManager
 import kotlinx.coroutines.Job
@@ -42,6 +45,12 @@ class MusicViewModel(
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists
 
+    private val _queues = MutableStateFlow<List<Queue>>(emptyList())
+    val queues: StateFlow<List<Queue>> = _queues
+
+    private val _activeQueue = MutableStateFlow<List<QueueItem>>(emptyList())
+    val activeQueue: StateFlow<List<QueueItem>> = _activeQueue
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
@@ -53,11 +62,6 @@ class MusicViewModel(
     private val _excludeWhatsAppAudio = MutableStateFlow(true)
     val excludeWhatsAppAudio: StateFlow<Boolean> = _excludeWhatsAppAudio
 
-    // Songs the user actually wants to see/play, after applying the WhatsApp audio exclusion -
-    // everything downstream (search/sort/folders/shuffle) builds on this rather than the raw
-    // scan result, so anything excluded from the library isn't just hidden from one list while
-    // still turning up in another. Matches both "WhatsApp Voice Notes" and "WhatsApp Audio"
-    // (shared audio files), and the "WhatsApp Business" variant of either.
     private val effectiveSongs: StateFlow<List<Song>> = combine(_songs, _excludeWhatsAppAudio) { songs, exclude ->
         if (exclude) songs.filterNot { it.parentFolder.contains("WhatsApp", ignoreCase = true) } else songs
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -118,6 +122,7 @@ class MusicViewModel(
             playbackManager?.init { player ->
                 _controller.value = player
                 setupControllerListener(player)
+                updateActiveQueue(player)
             }
         }
         if (mediaStoreObserver == null) {
@@ -127,10 +132,6 @@ class MusicViewModel(
         loadStoredMetadata()
     }
 
-    // Catches library changes made outside the app - a rename, an ID3 tag edit, a file added
-    // or deleted via another app - so the song list stays in sync without the user having to
-    // force-restart the app. MediaStore can fire several notifications in quick succession for
-    // a single change, so the actual reload is debounced.
     private fun registerMediaStoreObserver() {
         val context = appContext ?: return
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -154,6 +155,7 @@ class MusicViewModel(
         viewModelScope.launch {
             repository?.let { repo ->
                 _playlists.value = repo.getPlaylists().first()
+                _queues.value = repo.getQueues().first()
                 val recentIds = repo.getRecentlyPlayedIds().first()
                 _recentlyPlayed.value = _songs.value.filter { it.id in recentIds }
                 _excludeWhatsAppAudio.value = repo.getExcludeWhatsAppAudio().first()
@@ -173,6 +175,10 @@ class MusicViewModel(
                 if (isPlaying) startProgressTracking(player) else stopProgressTracking()
             }
             override fun onMediaMetadataChanged(metadata: MediaMetadata) { updatePlaybackState(player) }
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                updateActiveQueue(player)
+                updatePlaybackState(player)
+            }
             override fun onShuffleModeEnabledChanged(enabled: Boolean) { updatePlaybackState(player) }
             override fun onRepeatModeChanged(mode: Int) { updatePlaybackState(player) }
             override fun onPlaybackParametersChanged(params: PlaybackParameters) { updatePlaybackState(player) }
@@ -181,13 +187,26 @@ class MusicViewModel(
         updatePlaybackState(player)
     }
 
-    private fun updatePlaybackState(player: Player) {
-        val currentMediaId = player.currentMediaItem?.mediaId
-        val currentSong = _songs.value.find { it.id.toString() == currentMediaId }
+    private fun updateActiveQueue(player: Player) {
+        val queue = mutableListOf<QueueItem>()
+        for (i in 0 until player.mediaItemCount) {
+            val item = player.getMediaItemAt(i)
+            val mediaId = item.mediaId
+            val songId = mediaId.split("|").firstOrNull()?.toLongOrNull()
+            
+            val song = _songs.value.find { it.id == songId }
+            if (song != null) {
+                queue.add(QueueItem(queueId = mediaId, song = song))
+            }
+        }
+        _activeQueue.value = queue
+    }
 
-        // Compare by id, not full equality: incrementPlayCount()/toggleFavorite() replace the
-        // Song in _songs with a copy that differs in those fields, which would otherwise make
-        // this look like "a new song started" on every progress tick and re-fire below.
+    private fun updatePlaybackState(player: Player) {
+        val mediaId = player.currentMediaItem?.mediaId ?: ""
+        val songId = mediaId.split("|").firstOrNull()?.toLongOrNull()
+        val currentSong = _songs.value.find { it.id == songId }
+
         if (currentSong != null && currentSong.id != _playbackState.value.currentSong?.id) {
             addToRecentlyPlayed(currentSong)
             incrementPlayCount(currentSong)
@@ -239,7 +258,7 @@ class MusicViewModel(
         viewModelScope.launch { repository?.saveFavorites(updated.filter { it.isFavorite }.map { it.id }.toSet()) }
     }
 
-    fun playSong(song: Song) = effectiveSongs.value.let { songs -> playbackManager?.play(songs, songs.indexOf(song), false) }
+    fun playSong(song: Song) = playbackManager?.play(listOf(song), 0, false)
     fun shuffleAll() = playbackManager?.play(effectiveSongs.value, 0, true)
     
     fun playPlaylist(playlist: Playlist, song: Song? = null) {
@@ -290,7 +309,9 @@ class MusicViewModel(
     }
 
     fun createPlaylist(name: String) {
-        val updated = _playlists.value + Playlist(name = name)
+        val cleaned = name.trim()
+        if (cleaned.isBlank()) return
+        val updated = _playlists.value + Playlist(name = cleaned)
         _playlists.value = updated
         viewModelScope.launch { repository?.savePlaylists(updated) }
     }
@@ -301,14 +322,77 @@ class MusicViewModel(
         viewModelScope.launch { repository?.savePlaylists(updated) }
     }
 
+    fun enqueueSong(song: Song) {
+        playbackManager?.appendToQueue(song)
+    }
+
+    fun playNext(song: Song) {
+        playbackManager?.playNext(song)
+    }
+
+    fun createQueue(name: String) {
+        val cleaned = name.trim()
+        if (cleaned.isBlank()) return
+        val updated = _queues.value + Queue(name = cleaned)
+        _queues.value = updated
+        viewModelScope.launch { repository?.saveQueues(updated) }
+    }
+
+    fun addSongToQueue(song: Song, queueId: String) {
+        val updated = _queues.value.map { if (it.id == queueId && song.id !in it.songIds) it.copy(songIds = it.songIds + song.id) else it }
+        _queues.value = updated
+        viewModelScope.launch { repository?.saveQueues(updated) }
+        enqueueSong(song)
+    }
+
+    fun addSongToQueue(song: Song) {
+        enqueueSong(song)
+    }
+
+    fun playQueue(queue: Queue, song: Song? = null) {
+        val list = _songs.value.filter { it.id in queue.songIds }
+        if (list.isEmpty()) return
+        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false)
+    }
+
+    fun clearActiveQueue() {
+        playbackManager?.clearQueue()
+    }
+
+    fun removeFromActiveQueue(queueItem: QueueItem) {
+        val controller = _controller.value ?: return
+        for (i in 0 until controller.mediaItemCount) {
+            if (controller.getMediaItemAt(i).mediaId == queueItem.queueId) {
+                playbackManager?.removeFromQueue(i)
+                break
+            }
+        }
+    }
+
+    fun playFromActiveQueue(queueItem: QueueItem) {
+        val controller = _controller.value ?: return
+        for (i in 0 until controller.mediaItemCount) {
+            if (controller.getMediaItemAt(i).mediaId == queueItem.queueId) {
+                controller.seekTo(i, 0)
+                controller.play()
+                break
+            }
+        }
+    }
+
     fun playExternalUri(uri: Uri) { playbackManager?.playUri(uri) }
 
     fun loadSongs(context: Context) {
         viewModelScope.launch {
             _isLoading.value = true
-            _songs.value = repository?.fetchAllSongs() ?: emptyList()
-            loadStoredMetadata()
-            _isLoading.value = false
+            try {
+                _songs.value = repository?.fetchAllSongs() ?: emptyList()
+                loadStoredMetadata()
+            } catch (e: Exception) {
+                _songs.value = emptyList()
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
