@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dduke Privacy Policy</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --paper: #f5f6f4;
+    --surface: #ffffff;
+    --ink: #1b1f23;
+    --ink-soft: #545b63;
+    --ink-faint: #838a91;
+    --line: #dee2e1;
+    --accent: #6200ee;
+    --accent-ink: #4b00c4;
+    --accent-soft: #ece0fb;
+    --chip-good: #eef3ea;
+    --chip-good-ink: #3d6b34;
+    --shadow: 0 1px 2px rgba(27,31,35,0.04), 0 8px 24px rgba(27,31,35,0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14171a;
+      --surface: #1b1f23;
+      --ink: #ecedee;
+      --ink-soft: #9aa1a8;
+      --ink-faint: #6b7278;
+      --line: #2a2f33;
+      --accent: #a985f0;
+      --accent-ink: #c6aef7;
+      --accent-soft: #2a2140;
+      --chip-good: #202a1d;
+      --chip-good-ink: #9bc98d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14171a;
+    --surface: #1b1f23;
+    --ink: #ecedee;
+    --ink-soft: #9aa1a8;
+    --ink-faint: #6b7278;
+    --line: #2a2f33;
+    --accent: #a985f0;
+    --accent-ink: #c6aef7;
+    --accent-soft: #2a2140;
+    --chip-good: #202a1d;
+    --chip-good-ink: #9bc98d;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; text-wrap: balance; color: var(--ink); }
+  code, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible, .toc a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px;
+  }
+
+  .page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+    display: grid;
+    grid-template-columns: 220px minmax(0, 720px);
+    gap: 56px;
+    justify-content: center;
+  }
+
+  header.masthead {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding-bottom: 28px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .masthead-id { display: flex; align-items: center; gap: 14px; }
+  .mark {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--accent-soft); color: var(--accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fraunces', serif; font-weight: 600; font-size: 20px;
+    flex-shrink: 0;
+  }
+  .masthead-id h1 { font-size: 26px; margin: 0 0 2px; font-weight: 600; }
+  .masthead-id p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .meta {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+    font-size: 13px; color: var(--ink-faint);
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--chip-good); color: var(--chip-good-ink);
+    border-radius: 999px; padding: 4px 12px; font-size: 12.5px; font-weight: 600;
+  }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  nav.toc {
+    position: sticky; top: 48px; align-self: start;
+    display: flex; flex-direction: column; gap: 2px;
+    font-size: 13.5px;
+  }
+  nav.toc .toc-label {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 10px; font-weight: 600;
+  }
+  nav.toc a {
+    color: var(--ink-soft); text-decoration: none; padding: 6px 0 6px 12px;
+    border-left: 2px solid var(--line); transition: color 0.15s, border-color 0.15s;
+  }
+  nav.toc a:hover { color: var(--ink); border-color: var(--ink-faint); }
+  nav.toc a.active { color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+
+  main { min-width: 0; }
+  main > section {
+    padding: 32px 0;
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 32px;
+  }
+  main > section:first-of-type { padding-top: 0; }
+  main > section:last-of-type { border-bottom: none; }
+
+  .lede {
+    font-size: 18px; color: var(--ink-soft); max-width: 62ch; margin: 0 0 8px;
+  }
+
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace; color: var(--accent-ink);
+    font-size: 13px; font-weight: 500; letter-spacing: 0.02em;
+  }
+  h2 { font-size: 21px; margin: 4px 0 14px; }
+  h3 { font-size: 16.5px; margin: 20px 0 8px; font-weight: 600; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; max-width: 66ch; }
+  li { margin-bottom: 6px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 20px 22px; margin: 18px 0;
+  }
+
+  table.datamap { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 18px 0 8px; }
+  table.datamap th {
+    text-align: left; font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; padding: 0 12px 10px 0; border-bottom: 1px solid var(--line);
+  }
+  table.datamap td {
+    padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-soft);
+  }
+  table.datamap tr:last-child td { border-bottom: none; }
+  table.datamap td.perm { color: var(--ink); white-space: nowrap; }
+  .overflow-wrap { overflow-x: auto; }
+
+  .contact-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .contact-card .label { font-size: 12px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .contact-card .value { font-family: 'IBM Plex Mono', monospace; font-size: 15px; }
+
+  footer {
+    grid-column: 1 / -1; margin-top: 8px; padding-top: 24px; border-top: 1px solid var(--line);
+    color: var(--ink-faint); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+
+  @media (max-width: 860px) {
+    .page { grid-template-columns: 1fr; gap: 28px; }
+    nav.toc {
+      position: static; flex-direction: row; overflow-x: auto; gap: 4px;
+      padding-bottom: 8px; -webkit-overflow-scrolling: touch;
+    }
+    nav.toc .toc-label { display: none; }
+    nav.toc a { border-left: none; border-bottom: 2px solid var(--line); padding: 6px 10px; white-space: nowrap; }
+    nav.toc a.active { border-color: var(--accent); }
+    .meta { align-items: flex-start; }
+    header.masthead { align-items: flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; transition: none !important; }
+  }
+  html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-id">
+      <div class="mark">D</div>
+      <div>
+        <h1>Dduke</h1>
+        <p>Privacy Policy</p>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="pill">On-device by default</span>
+      <span>Last updated October 2026 &middot; <span class="mono">com.neth.vibemusicplayer</span></span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Table of contents">
+    <span class="toc-label">On this page</span>
+    <a href="#overview">1. Overview</a>
+    <a href="#permissions">2. Permissions</a>
+    <a href="#storage">3. What's stored, and where</a>
+    <a href="#ads">4. Advertising</a>
+    <a href="#sharing">5. Third parties</a>
+    <a href="#children">6. Children</a>
+    <a href="#choices">7. Your choices</a>
+    <a href="#changes">8. Changes</a>
+    <a href="#contact">9. Contact</a>
+  </nav>
+
+  <main>
+    <section id="overview">
+      <p class="lede">Dduke plays audio files already stored on your device. It doesn't have accounts, doesn't require sign-in, and doesn't upload your music library anywhere. This page explains, plainly, what the app touches and why.</p>
+    </section>
+
+    <section id="permissions">
+      <span class="section-num">02</span>
+      <h2>Permissions the app requests</h2>
+      <p>Each permission below exists for one specific, on-screen feature. None of them are used to collect data for us, they let the app read files or show controls on your own device.</p>
+      <div class="overflow-wrap">
+        <table class="datamap">
+          <tr><th>Permission</th><th>What it's for</th></tr>
+          <tr><td class="perm">READ_MEDIA_AUDIO</td><td>Lets the app list the audio files already on your device (Android 13+), so it can build your song and folder list.</td></tr>
+          <tr><td class="perm">READ_EXTERNAL_STORAGE</td><td>The same purpose as above, for Android 12 and earlier.</td></tr>
+          <tr><td class="perm">FOREGROUND_SERVICE / FOREGROUND_SERVICE_MEDIA_PLAYBACK</td><td>Keeps music playing when you switch apps or lock your screen, with a visible playback notification.</td></tr>
+          <tr><td class="perm">POST_NOTIFICATIONS</td><td>Shows the "now playing" notification with play/pause/skip controls.</td></tr>
+          <tr><td class="perm">WRITE_SETTINGS</td><td>Only used the moment you tap "Set as Ringtone" on a song, it's what lets Android change your ringtone. Never used otherwise.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="storage">
+      <span class="section-num">03</span>
+      <h2>What's stored, and where</h2>
+      <p>Your favorites, playlists, recently-played history, per-song play counts, and the "exclude WhatsApp audio" preference are saved in the app's private local storage on your device (Android DataStore). None of it is transmitted to us or to any server, we don't operate one. Uninstalling the app deletes all of it immediately.</p>
+      <h3>How the WhatsApp audio filter works</h3>
+      <p>If you enable it, the app checks the folder name of each audio file it already has permission to see (for example, one literally named <code>WhatsApp Voice Notes</code> or <code>WhatsApp Audio</code>) and leaves matching files out of your library view. That check happens entirely on your device against file and folder names it can already read, nothing about your files or folders is sent anywhere to make this decision.</p>
+    </section>
+
+    <section id="ads">
+      <span class="section-num">04</span>
+      <h2>Advertising</h2>
+      <p>Dduke shows banner ads through Google's AdMob (Google Mobile Ads SDK) to keep the app free. To serve and measure ads, AdMob may collect an advertising identifier and general device/app information under Google's own privacy practices. We don't receive your listening history, your files, or your identity from this, only Google's ad platform handles that data, per its own terms.</p>
+      <p>You can review how Google handles this data, and manage ad personalization for your Google Account, at <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a>.</p>
+    </section>
+
+    <section id="sharing">
+      <span class="section-num">05</span>
+      <h2>Third parties</h2>
+      <p>The only third-party service integrated into this app is Google AdMob, described above. There's no analytics SDK, no crash-reporting SDK, and no other tracker built into the app.</p>
+    </section>
+
+    <section id="children">
+      <span class="section-num">06</span>
+      <h2>Children</h2>
+      <p>Dduke is not directed at children and isn't part of Google Play's Designed for Families program. We don't knowingly collect personal information from children under 13.</p>
+    </section>
+
+    <section id="choices">
+      <span class="section-num">07</span>
+      <h2>Your choices</h2>
+      <ul>
+        <li>Revoke the audio/storage permission at any time in Android Settings &rarr; Apps &rarr; Dduke &rarr; Permissions; the app will simply show no songs until it's granted again.</li>
+        <li>Manage ad personalization for your device at Settings &rarr; Google &rarr; Ads.</li>
+        <li>Uninstalling the app removes every local preference described in <a href="#storage">Section 3</a>.</li>
+      </ul>
+    </section>
+
+    <section id="changes">
+      <span class="section-num">08</span>
+      <h2>Changes to this policy</h2>
+      <p>If what the app collects or how it uses permissions changes, this page will be updated and the "last updated" date at the top will change accordingly.</p>
+    </section>
+
+    <section id="contact">
+      <span class="section-num">09</span>
+      <h2>Contact</h2>
+      <div class="card contact-card">
+        <div>
+          <div class="label">Developer contact</div>
+          <div class="value">kjdumba@gmail.com</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Dduke</span>
+    <span>Local playback. No accounts. No uploads.</span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+    var sections = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+    if (!('IntersectionObserver' in window)) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var idx = sections.indexOf(entry.target);
+        if (idx === -1) return;
+        if (entry.isIntersecting) {
+          links.forEach(function (l) { l.classList.remove('active'); });
+          links[idx].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    sections.forEach(function (s) { if (s) io.observe(s); });
+  })();
+</script>
+
+</body>
+</html>
