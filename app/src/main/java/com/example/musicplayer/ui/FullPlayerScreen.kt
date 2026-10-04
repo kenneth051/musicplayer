@@ -75,18 +75,29 @@ fun FullPlayerScreen(
 
     val scope = rememberCoroutineScope()
 
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val bottomBgColor = dominantColor.copy(alpha = 0.4f).compositeOver(surfaceColor)
+    val isLightBackground = surfaceColor.luminance() > 0.5f || dominantColor.luminance() > 0.5f || bottomBgColor.luminance() > 0.5f
+    val controlColor = if (isLightBackground) Color.Black else Color.White
+
+    val fabContainer = if (dominantColor.luminance() > 0.5f) Color.Black else dominantColor
+    val fabIconColor = if (fabContainer.luminance() > 0.5f) Color.Black else Color.White
+
+    val topGradientColor = if (isLightBackground) dominantColor.copy(alpha = 0.7f) else dominantColor.copy(alpha = 0.4f)
+    val bottomGradientColor = if (isLightBackground) Color.White.copy(alpha = 0.85f).compositeOver(surfaceColor) else surfaceColor
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Now Playing", style = MaterialTheme.typography.titleMedium) },
+                title = { Text("Now Playing", style = MaterialTheme.typography.titleMedium, color = controlColor) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = controlColor)
                     }
                 },
                 actions = {
                     IconButton(onClick = { showOptionsMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More Options")
+                        Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = controlColor)
                     }
                     DropdownMenu(expanded = showOptionsMenu, onDismissRequest = { showOptionsMenu = false }) {
                         DropdownMenuItem(
@@ -127,14 +138,8 @@ fun FullPlayerScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
-        val surfaceColor = MaterialTheme.colorScheme.surface
-        // Pick readable text color against the actual tinted background behind it, rather than
-        // assuming it's always dark (light/pastel album art would make white text unreadable).
-        val displayedTint = dominantColor.copy(alpha = 0.4f).compositeOver(surfaceColor)
-        val onDominantColor = if (displayedTint.luminance() > 0.5f) Color.Black else Color.White
-
         Box(modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(dominantColor.copy(alpha = 0.4f), surfaceColor))
+            Brush.verticalGradient(listOf(topGradientColor, bottomGradientColor))
         ))
 
         Column(
@@ -164,7 +169,7 @@ fun FullPlayerScreen(
                     text = state.currentTitle,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = onDominantColor,
+                    color = controlColor,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -173,27 +178,32 @@ fun FullPlayerScreen(
                 Text(
                     text = state.currentArtist,
                     style = MaterialTheme.typography.titleLarge,
-                    color = onDominantColor.copy(alpha = 0.7f),
+                    color = controlColor.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
                 )
             }
 
             Column {
+                val sliderColor = controlColor
                 Slider(
                     value = state.currentPosition.toFloat(),
                     onValueChange = { viewModel.seekTo(it.toLong()) },
                     valueRange = 0f..state.currentDuration.toFloat().coerceAtLeast(1f),
                     modifier = Modifier.fillMaxWidth(),
-                    colors = SliderDefaults.colors(thumbColor = dominantColor, activeTrackColor = dominantColor)
+                    colors = SliderDefaults.colors(
+                        thumbColor = sliderColor,
+                        activeTrackColor = sliderColor,
+                        inactiveTrackColor = sliderColor.copy(alpha = 0.24f)
+                    )
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(state.currentPosition), style = MaterialTheme.typography.bodySmall)
-                    Text(formatTime(state.currentDuration), style = MaterialTheme.typography.bodySmall)
+                    Text(formatTime(state.currentPosition), style = MaterialTheme.typography.bodySmall, color = controlColor.copy(alpha = 0.7f))
+                    Text(formatTime(state.currentDuration), style = MaterialTheme.typography.bodySmall, color = controlColor.copy(alpha = 0.7f))
                 }
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                val transportColor = onDominantColor
+                val transportColor = controlColor
                 val shuffleTooltipState = rememberTooltipState()
                 val shuffleText = if (state.shuffleModeEnabled) "Shuffle On" else "Shuffle Off"
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(shuffleText) } }, state = shuffleTooltipState) {
@@ -209,14 +219,14 @@ fun FullPlayerScreen(
                 FloatingActionButton(
                     onClick = { viewModel.togglePlayPause() },
                     shape = CircleShape,
-                    containerColor = dominantColor,
-                    contentColor = onDominantColor
+                    containerColor = fabContainer,
+                    contentColor = fabIconColor
                 ) {
                     Icon(
                         imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (state.isPlaying) "Pause" else "Play",
                         modifier = Modifier.size(48.dp),
-                        tint = onDominantColor
+                        tint = fabIconColor
                     )
                 }
 

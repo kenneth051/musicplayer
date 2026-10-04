@@ -12,11 +12,17 @@ import androidx.media3.common.util.UnstableApi
 class SmartForwardingPlayer(basePlayer: Player) : ForwardingPlayer(basePlayer) {
 
     override fun seekToPrevious() {
+        // seekToPrevious is triggered by Hardware buttons and System Notifications.
+        // It follows the "3-Second Rule" logic.
         processPreviousAction()
     }
 
     override fun seekToPreviousMediaItem() {
-        processPreviousAction()
+        // seekToPreviousMediaItem is triggered by the In-App "Skip" buttons.
+        // It always performs a hard skip regardless of the song position.
+        val wasPlaying = playWhenReady
+        super.seekToPreviousMediaItem()
+        if (wasPlaying) play()
     }
 
     fun processPreviousAction() {

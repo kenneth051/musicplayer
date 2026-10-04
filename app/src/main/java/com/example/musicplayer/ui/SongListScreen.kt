@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import android.widget.Toast
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -61,7 +62,7 @@ fun SongListScreen(
     val excludeWhatsAppAudio by viewModel.excludeWhatsAppAudio.collectAsState()
     val favoriteSongs = songs.filter { it.isFavorite }
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val selectedTab by viewModel.selectedTab.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
     var showSettingsMenu by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf<Song?>(null) }
@@ -72,7 +73,7 @@ fun SongListScreen(
         topBar = {
             Column {
                 CenterAlignedTopAppBar(
-                    title = { Text("Vibe Music Player", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                    title = { Text("music player - Dduke", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
                     actions = {
                         Box {
                             IconButton(onClick = { showSettingsMenu = true }) {
@@ -126,10 +127,10 @@ fun SongListScreen(
                 )
 
                 TabRow(selectedTabIndex = selectedTab) {
-                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Songs") })
-                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Folders") })
-                    Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Playlists") })
-                    Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("Queue") })
+                    Tab(selected = selectedTab == 0, onClick = { viewModel.onSelectedTabChanged(0) }, text = { Text("Songs") })
+                    Tab(selected = selectedTab == 1, onClick = { viewModel.onSelectedTabChanged(1) }, text = { Text("Folders") })
+                    Tab(selected = selectedTab == 2, onClick = { viewModel.onSelectedTabChanged(2) }, text = { Text("Playlists") })
+                    Tab(selected = selectedTab == 3, onClick = { viewModel.onSelectedTabChanged(3) }, text = { Text("Queue") })
                 }
             }
         },
@@ -171,42 +172,80 @@ fun SongListScreen(
                     }
                 }
 
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    if (isLoading && songs.isEmpty()) {
-                        item { Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.testTag("loading_indicator")) } }
-                    } else if (songs.isEmpty()) {
-                        item { Box(modifier = Modifier.fillParentMaxSize().padding(32.dp), contentAlignment = Alignment.Center) { Text("No music found.") } }
-                    } else {
-                        // Recently Played
-                        if (recentlyPlayed.isNotEmpty() && searchQuery.isBlank()) {
-                            item {
-                                Text("Recently Played", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
-                                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    items(recentlyPlayed) { song -> RecentSongCard(song = song, onClick = { viewModel.playSong(song) }) }
+                val lazyListState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val showScroller = selectedTab == 0 && songs.size > 10 && searchQuery.isBlank()
+                    
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = lazyListState,
+                        contentPadding = PaddingValues(bottom = 16.dp, end = if (showScroller) 24.dp else 0.dp)
+                    ) {
+                        if (isLoading && songs.isEmpty()) {
+                            item { Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.testTag("loading_indicator")) } }
+                        } else if (songs.isEmpty()) {
+                            item { Box(modifier = Modifier.fillParentMaxSize().padding(32.dp), contentAlignment = Alignment.Center) { Text("No music found.") } }
+                        } else {
+                            // Recently Played
+                            if (recentlyPlayed.isNotEmpty() && searchQuery.isBlank()) {
+                                item {
+                                    Text("Recently Played", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
+                                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        items(recentlyPlayed) { song -> RecentSongCard(song = song, onClick = { viewModel.playSong(song) }) }
+                                    }
+                                    Spacer(Modifier.height(16.dp))
                                 }
-                                Spacer(Modifier.height(16.dp))
+                            }
+
+                            item {
+                                Button(onClick = { viewModel.shuffleAll() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = MaterialTheme.shapes.medium) {
+                                    Icon(Icons.Default.Shuffle, null, modifier = Modifier.size(20.dp))
+                                    Text("Shuffle Play", modifier = Modifier.padding(start = 8.dp))
+                                }
+                            }
+
+                            items(songs, key = { it.id }) { song ->
+                                SongListItem(
+                                    song = song,
+                                    onClick = { viewModel.playSong(song) },
+                                    onAddToPlaylist = { showPlaylistDialog = song },
+                                    onAddToQueue = {
+                                        viewModel.addSongToQueue(song)
+                                        Toast.makeText(context, "${song.title} added to queue", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onToggleFavorite = { viewModel.toggleFavorite(song) }
+                                )
                             }
                         }
+                    }
 
-                        item {
-                            Button(onClick = { viewModel.shuffleAll() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = MaterialTheme.shapes.medium) {
-                                Icon(Icons.Default.Shuffle, null, modifier = Modifier.size(20.dp))
-                                Text("Shuffle Play", modifier = Modifier.padding(start = 8.dp))
-                            }
-                        }
-
-                        items(songs, key = { it.id }) { song ->
-                            SongListItem(
-                                song = song,
-                                onClick = { viewModel.playSong(song) },
-                                onAddToPlaylist = { showPlaylistDialog = song },
-                                onAddToQueue = {
-                                    viewModel.addSongToQueue(song)
-                                    Toast.makeText(context, "${song.title} added to queue", Toast.LENGTH_SHORT).show()
-                                },
-                                onToggleFavorite = { viewModel.toggleFavorite(song) }
-                            )
-                        }
+                    // Alphabet Scroller Integration
+                    if (showScroller) {
+                        AlphabetScroller(
+                            onLetterSelected = { letter ->
+                                val index = songs.indexOfFirst { song ->
+                                    val firstChar = when (sortOrder) {
+                                        MusicViewModel.SortOrder.ARTIST -> song.artist.firstOrNull()?.uppercaseChar()
+                                        else -> song.title.firstOrNull()?.uppercaseChar()
+                                    }
+                                    if (letter == "#") {
+                                        firstChar != null && !firstChar.isLetter()
+                                    } else {
+                                        firstChar == letter.firstOrNull()
+                                    }
+                                }
+                                if (index != -1) {
+                                    // Account for headers offset: Recently Played (1) + Shuffle (1)
+                                    val offset = if (recentlyPlayed.isNotEmpty()) 2 else 1
+                                    scope.launch {
+                                        lazyListState.scrollToItem(index + offset)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp)
+                        )
                     }
                 }
             } else if (selectedTab == 1) {
@@ -266,10 +305,13 @@ fun SongListScreen(
                     }
                 }
             } else if (selectedTab == 3) {
-                // Active Queue List
+                // Active Queue List - Spotify Style (History + Now Playing + Up Next)
                 val currentSongIndex = controller?.currentMediaItemIndex ?: -1
-
-                // 'Up Next' are items after the current playback index
+                
+                val history = remember(activeQueue, currentSongIndex) {
+                    if (currentSongIndex > 0) activeQueue.take(currentSongIndex) else emptyList()
+                }
+                
                 val upNext = remember(activeQueue, currentSongIndex) {
                     if (currentSongIndex == -1) {
                         if (activeQueue.isNotEmpty()) activeQueue else emptyList()
@@ -284,6 +326,39 @@ fun SongListScreen(
                     modifier = Modifier.fillMaxSize(),
                     state = lazyListState
                 ) {
+                    // 1. History Section (Previously Played)
+                    if (history.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Recently Played",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        items(history, key = { it.queueId }) { item ->
+                            ListItem(
+                                modifier = Modifier.clickable { viewModel.playFromActiveQueue(item) }.alpha(0.6f),
+                                headlineContent = { Text(item.song.title, style = MaterialTheme.typography.bodyMedium) },
+                                supportingContent = { Text(item.song.artist, style = MaterialTheme.typography.labelSmall) },
+                                leadingContent = {
+                                    Surface(modifier = Modifier.size(32.dp), shape = MaterialTheme.shapes.extraSmall) {
+                                        AsyncImage(
+                                            model = item.song.albumArtUri,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                            error = painterResource(R.drawable.ic_default_art),
+                                            placeholder = painterResource(R.drawable.ic_default_art)
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+                    }
+
+                    // 2. Now Playing Section
                     if (playbackState.currentSong != null) {
                         item(key = "header_now_playing") {
                             Text(
@@ -307,13 +382,14 @@ fun SongListScreen(
                         }
                     }
 
+                    // 3. Up Next Section
                     if (upNext.isEmpty()) {
                         item(key = "empty_queue_msg") {
                             Box(
                                 modifier = Modifier.fillParentMaxSize().padding(32.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("Queue is empty.")
+                                Text("No songs up next.")
                             }
                         }
                     } else {

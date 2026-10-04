@@ -4,13 +4,23 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
 
-    <!-- Round Speaker outline in White -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z"/>
+    <!-- Scaled to 70% about the viewport center so the glyph sits inside the adaptive icon's
+         66dp safe zone instead of bleeding to the edges, where circular/squircle launcher
+         masks (Pixel, Samsung, etc.) would clip it. -->
+    <group
+        android:pivotX="12"
+        android:pivotY="12"
+        android:scaleX="0.7"
+        android:scaleY="0.7">
 
-    <!-- Adjusted Music Note Symbol (75% scale) - Optically Centered -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M16.5,6.5 L9.5,8 V14.8 C9.1,14.7 8.7,14.6 8.2,14.6 C6.9,14.6 5.8,15.5 5.8,16.6 C5.8,17.7 6.9,18.6 8.2,18.6 C9.5,18.6 10.5,17.7 10.5,16.6 V9.4 L15.5,8.2 V13.1 C15.1,13 14.7,12.9 14.2,12.9 C12.9,12.9 11.8,13.8 11.8,14.9 C11.8,16 12.9,16.9 14.2,16.9 C15.5,16.9 16.5,16 16.5,14.9 V6.5 Z"/>
+        <!-- Round Speaker outline in White -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z"/>
+
+        <!-- Adjusted Music Note Symbol (75% scale) - Optically Centered -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M16.5,6.5 L9.5,8 V14.8 C9.1,14.7 8.7,14.6 8.2,14.6 C6.9,14.6 5.8,15.5 5.8,16.6 C5.8,17.7 6.9,18.6 8.2,18.6 C9.5,18.6 10.5,17.7 10.5,16.6 V9.4 L15.5,8.2 V13.1 C15.1,13 14.7,12.9 14.2,12.9 C12.9,12.9 11.8,13.8 11.8,14.9 C11.8,16 12.9,16.9 14.2,16.9 C15.5,16.9 16.5,16 16.5,14.9 V6.5 Z"/>
+    </group>
 </vector>

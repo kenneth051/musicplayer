@@ -58,10 +58,10 @@ class PlaybackManager(private val context: Context) {
         }
     }
 
-    private fun songToMediaItem(song: Song): MediaItem {
+    private fun songToMediaItem(song: Song, tag: String = "context"): MediaItem {
         val uniqueId = UUID.randomUUID().toString()
         return MediaItem.Builder()
-            .setMediaId("${song.id}|$uniqueId")
+            .setMediaId("${song.id}|$uniqueId|$tag")
             .setUri(song.contentUri)
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -72,46 +72,77 @@ class PlaybackManager(private val context: Context) {
                     .setExtras(Bundle().apply {
                         putLong("duration", song.duration.toLong())
                         putLong("songId", song.id)
+                        putString("tag", tag)
                     })
                     .build()
             )
             .build()
     }
 
-    fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean) {
+    fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean, tag: String = "context") {
         val player = _controller.value ?: return
 
-        val mediaItems = songs.map { songToMediaItem(it) }
+        val mediaItems = songs.map { songToMediaItem(it, tag) }
         player.setMediaItems(mediaItems, startIndex, 0L)
         player.shuffleModeEnabled = shuffle
         player.prepare()
         player.play()
     }
 
-    fun appendToQueue(song: Song) {
+    fun appendToQueue(song: Song, tag: String = "manual") {
         val player = _controller.value ?: return
-        player.addMediaItem(songToMediaItem(song))
+        
+        // Find the index to insert: after current song and after any existing manual items
+        var insertIndex = player.currentMediaItemIndex + 1
+        if (insertIndex > player.mediaItemCount) insertIndex = player.mediaItemCount
+        
+        // Find the boundary where manual items end and context items begin
+        for (i in insertIndex until player.mediaItemCount) {
+            val itemTag = player.getMediaItemAt(i).mediaId.split("|").getOrNull(2)
+            if (itemTag == "manual") {
+                insertIndex = i + 1
+            } else {
+                break
+            }
+        }
+
+        player.addMediaItem(insertIndex, songToMediaItem(song, tag))
+        
         if (!player.isPlaying && player.mediaItemCount == 1) {
             player.prepare()
             player.play()
         }
     }
 
-    fun appendToQueue(songs: List<Song>) {
+    fun appendToQueue(songs: List<Song>, tag: String = "manual") {
         val player = _controller.value ?: return
-        val items = songs.map { songToMediaItem(it) }
-        if (items.isEmpty()) return
-        player.addMediaItems(items)
+        if (songs.isEmpty()) return
+        
+        var insertIndex = player.currentMediaItemIndex + 1
+        if (insertIndex > player.mediaItemCount) insertIndex = player.mediaItemCount
+        
+        for (i in insertIndex until player.mediaItemCount) {
+            val itemTag = player.getMediaItemAt(i).mediaId.split("|").getOrNull(2)
+            if (itemTag == "manual") {
+                insertIndex = i + 1
+            } else {
+                break
+            }
+        }
+
+        val items = songs.map { songToMediaItem(it, tag) }
+        player.addMediaItems(insertIndex, items)
+        
         if (!player.isPlaying && player.mediaItemCount == items.size) {
             player.prepare()
             player.play()
         }
     }
 
-    fun playNext(song: Song) {
+    fun playNext(song: Song, tag: String = "manual") {
         val player = _controller.value ?: return
-        val index = player.currentMediaItemIndex + 1
-        player.addMediaItem(index.coerceAtLeast(0), songToMediaItem(song))
+        val index = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+        player.addMediaItem(index, songToMediaItem(song, tag))
         if (!player.isPlaying && player.mediaItemCount == 1) {
             player.prepare()
             player.play()
@@ -147,8 +178,8 @@ class PlaybackManager(private val context: Context) {
 
     fun togglePlayPause() = _controller.value?.let { if (it.isPlaying) it.pause() else it.play() }
     fun pause() = _controller.value?.pause()
-    fun skipNext() = _controller.value?.seekToNext()
-    fun skipPrevious() = _controller.value?.seekToPrevious()
+    fun skipNext() = _controller.value?.seekToNextMediaItem()
+    fun skipPrevious() = _controller.value?.seekToPreviousMediaItem()
     fun seekTo(pos: Long) = _controller.value?.seekTo(pos)
     fun setSpeed(speed: Float) = _controller.value?.setPlaybackSpeed(speed)
     fun toggleShuffle() = _controller.value?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }

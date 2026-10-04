@@ -54,8 +54,11 @@ class MusicViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
-    private val _sortOrder = MutableStateFlow(SortOrder.DATE_ADDED)
+    private val _sortOrder = MutableStateFlow(SortOrder.TITLE)
     val sortOrder: StateFlow<SortOrder> = _sortOrder
+
+    private val _selectedTab = MutableStateFlow(0)
+    val selectedTab: StateFlow<Int> = _selectedTab
 
     private val _recentlyPlayed = MutableStateFlow<List<Song>>(emptyList())
 
@@ -251,6 +254,7 @@ class MusicViewModel(
 
     fun onSearchQueryChanged(query: String) { _searchQuery.value = query }
     fun onSortOrderChanged(order: SortOrder) { _sortOrder.value = order }
+    fun onSelectedTabChanged(index: Int) { _selectedTab.value = index }
 
     fun toggleFavorite(song: Song) {
         val updated = _songs.value.map { if (it.id == song.id) it.copy(isFavorite = !it.isFavorite) else it }
@@ -258,12 +262,14 @@ class MusicViewModel(
         viewModelScope.launch { repository?.saveFavorites(updated.filter { it.isFavorite }.map { it.id }.toSet()) }
     }
 
-    fun playSong(song: Song) = playbackManager?.play(listOf(song), 0, false)
-    fun shuffleAll() = playbackManager?.play(effectiveSongs.value, 0, true)
+    fun playSong(song: Song) = filteredSongs.value.let { list -> 
+        playbackManager?.play(list, list.indexOf(song).coerceAtLeast(0), false, tag = "context") 
+    }
+    fun shuffleAll() = playbackManager?.play(effectiveSongs.value, 0, true, tag = "context")
     
     fun playPlaylist(playlist: Playlist, song: Song? = null) {
         val list = _songs.value.filter { it.id in playlist.songIds }
-        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false)
+        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false, tag = "context")
     }
 
     fun togglePlayPause() = playbackManager?.togglePlayPause()
@@ -352,7 +358,7 @@ class MusicViewModel(
     fun playQueue(queue: Queue, song: Song? = null) {
         val list = _songs.value.filter { it.id in queue.songIds }
         if (list.isEmpty()) return
-        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false)
+        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false, tag = "context")
     }
 
     fun clearActiveQueue() {
