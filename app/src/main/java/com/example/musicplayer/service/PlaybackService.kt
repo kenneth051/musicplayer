@@ -4,12 +4,13 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import android.view.KeyEvent
 import android.util.Log
+import android.view.KeyEvent
 import androidx.annotation.OptIn
 import androidx.core.content.IntentCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -48,6 +49,23 @@ class PlaybackService : MediaSessionService() {
         clickHandler.postDelayed(resolveClicksRunnable, MULTI_CLICK_TIMEOUT_MS)
     }
 
+    private fun findNextManualIndex(player: Player, currentIndex: Int): Int {
+        val currentItem = if (currentIndex in 0 until player.mediaItemCount) player.getMediaItemAt(currentIndex) else null
+        val currentTag = currentItem?.mediaId?.split("|")?.getOrNull(2)
+            ?: currentItem?.mediaMetadata?.extras?.getString("tag")
+        if (currentTag == "manual") return currentIndex
+
+        for (i in 0 until player.mediaItemCount) {
+            val item = player.getMediaItemAt(i)
+            val tag = item.mediaId.split("|").getOrNull(2)
+                ?: item.mediaMetadata.extras?.getString("tag")
+            if (tag == "manual" && i != currentIndex) {
+                return i
+            }
+        }
+        return -1
+    }
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -63,6 +81,16 @@ class PlaybackService : MediaSessionService() {
             .build()
 
         basePlayer.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && basePlayer.shuffleModeEnabled) {
+                    val currentIndex = basePlayer.currentMediaItemIndex
+                    val nextManualIndex = findNextManualIndex(basePlayer, currentIndex)
+                    if (nextManualIndex != -1 && nextManualIndex != currentIndex) {
+                        basePlayer.seekToDefaultPosition(nextManualIndex)
+                    }
+                }
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 Log.e("PlaybackService", "Playback error occurred: ${error.message}", error)
                 if (basePlayer.hasNextMediaItem()) {

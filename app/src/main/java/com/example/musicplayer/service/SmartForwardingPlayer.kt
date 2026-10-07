@@ -6,48 +6,62 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 
 /**
- * Custom player wrapper that implements the "3-Second Rule" for headphone controls.
+ * Custom player wrapper that implements headphone control shortcuts and enforces
+ * priority for manually queued songs ("Play Next") even when Shuffle is ON.
  */
 @OptIn(UnstableApi::class)
 class SmartForwardingPlayer(basePlayer: Player) : ForwardingPlayer(basePlayer) {
 
+    private fun isManualItem(index: Int): Boolean {
+        if (index !in 0 until mediaItemCount) return false
+        val item = getMediaItemAt(index)
+        val tag = item.mediaId.split("|").getOrNull(2)
+            ?: item.mediaMetadata.extras?.getString("tag")
+        return tag == "manual"
+    }
+
+    override fun seekToNext() = keepingPlayState {
+        val nextIndex = currentMediaItemIndex + 1
+        if (shuffleModeEnabled && isManualItem(nextIndex)) {
+            seekToDefaultPosition(nextIndex)
+        } else {
+            super.seekToNext()
+        }
+    }
+
+    override fun seekToNextMediaItem() = keepingPlayState {
+        val nextIndex = currentMediaItemIndex + 1
+        if (shuffleModeEnabled && isManualItem(nextIndex)) {
+            seekToDefaultPosition(nextIndex)
+        } else {
+            super.seekToNextMediaItem()
+        }
+    }
+
     override fun seekToPrevious() {
-        // seekToPrevious is triggered by Hardware buttons and System Notifications.
-        // It follows the "3-Second Rule" logic.
         processPreviousAction()
     }
 
     override fun seekToPreviousMediaItem() {
-        // seekToPreviousMediaItem is triggered by the In-App "Skip" buttons.
-        // It always performs a hard skip regardless of the song position.
         val wasPlaying = playWhenReady
         super.seekToPreviousMediaItem()
         if (wasPlaying) play()
     }
 
     fun processPreviousAction() {
-        // Use playWhenReady (not isPlaying) so buffering right at the moment of the click
-        // doesn't get misread as "wasn't playing" and skip the resume-play step.
         val shouldBePlaying = playWhenReady
         val currentPos = currentPosition
 
         if (currentPos > 3000) {
-            // Rule 1: > 3 seconds, just restart the song
             seekTo(0)
         } else {
-            // Rule 2: < 3 seconds, go to actual previous song
             super.seekToPreviousMediaItem()
         }
 
-        // Rule 3: Crucial Detail - force play state if it was playing
         if (shouldBePlaying) {
             play()
         }
     }
-
-    override fun seekToNext() = keepingPlayState { super.seekToNext() }
-
-    override fun seekToNextMediaItem() = keepingPlayState { super.seekToNextMediaItem() }
 
     private inline fun keepingPlayState(action: () -> Unit) {
         val wasPlaying = playWhenReady
