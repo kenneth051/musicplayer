@@ -15,7 +15,11 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import android.app.Activity
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -68,6 +72,8 @@ fun SongListScreen(
     var showPlaylistDialog by remember { mutableStateOf<Song?>(null) }
     var showQueueDialog by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf<Song?>(null) }
+    val deleteSong = rememberDeleteSongHandler(viewModel)
 
     Scaffold(
         topBar = {
@@ -215,7 +221,8 @@ fun SongListScreen(
                                         viewModel.addSongToQueue(song)
                                         Toast.makeText(context, "${song.title} added to queue", Toast.LENGTH_SHORT).show()
                                     },
-                                    onToggleFavorite = { viewModel.toggleFavorite(song) }
+                                    onToggleFavorite = { viewModel.toggleFavorite(song) },
+                                    onDelete = { showDeleteDialog = song }
                                 )
                             }
                         }
@@ -348,8 +355,7 @@ fun SongListScreen(
                                             contentDescription = null,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop,
-                                            error = painterResource(R.drawable.ic_default_art),
-                                            placeholder = painterResource(R.drawable.ic_default_art)
+                                            error = painterResource(R.drawable.ic_default_art)
                                         )
                                     }
                                 }
@@ -359,7 +365,8 @@ fun SongListScreen(
                     }
 
                     // 2. Now Playing Section
-                    if (playbackState.currentSong != null) {
+                    val activeCurrentSong = playbackState.currentSong
+                    if (activeCurrentSong != null) {
                         item(key = "header_now_playing") {
                             Text(
                                 "Now Playing",
@@ -370,11 +377,12 @@ fun SongListScreen(
                         }
                         item(key = "current_song_item") {
                             SongListItem(
-                                song = playbackState.currentSong!!,
+                                song = activeCurrentSong,
                                 onClick = { onNavigateToPlayer() },
-                                onAddToPlaylist = { showPlaylistDialog = playbackState.currentSong },
+                                onAddToPlaylist = { showPlaylistDialog = activeCurrentSong },
                                 onAddToQueue = { /* Already in queue */ },
-                                onToggleFavorite = { viewModel.toggleFavorite(playbackState.currentSong!!) }
+                                onToggleFavorite = { viewModel.toggleFavorite(activeCurrentSong) },
+                                onDelete = { showDeleteDialog = activeCurrentSong }
                             )
                         }
                         item(key = "divider_now_playing") {
@@ -426,8 +434,7 @@ fun SongListScreen(
                                             contentDescription = null,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop,
-                                            error = painterResource(R.drawable.ic_default_art),
-                                            placeholder = painterResource(R.drawable.ic_default_art)
+                                            error = painterResource(R.drawable.ic_default_art)
                                         )
                                     }
                                 },
@@ -451,6 +458,14 @@ fun SongListScreen(
 
     showQueueDialog?.let { song ->
         AddToQueueDialog(viewModel = viewModel, song = song, onDismiss = { showQueueDialog = null })
+    }
+
+    showDeleteDialog?.let { song ->
+        DeleteSongConfirmDialog(
+            song = song,
+            onConfirm = { deleteSong(song) },
+            onDismiss = { showDeleteDialog = null }
+        )
     }
 
     if (showCreatePlaylistDialog) {
@@ -494,7 +509,8 @@ fun SongListItem(
     onClick: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    onDelete: () -> Unit
 ) {
     ListItem(
         modifier = Modifier.clickable { onClick() },
@@ -507,8 +523,7 @@ fun SongListItem(
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    error = painterResource(R.drawable.ic_default_art),
-                    placeholder = painterResource(R.drawable.ic_default_art)
+                    error = painterResource(R.drawable.ic_default_art)
                 )
             }
         },
@@ -532,6 +547,11 @@ fun SongListItem(
                             text = { Text("Add to Playlist") },
                             onClick = { onAddToPlaylist(); showMenu = false },
                             leadingIcon = { Icon(Icons.Default.LibraryMusic, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            onClick = { onDelete(); showMenu = false },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
                         )
                     }
                 }

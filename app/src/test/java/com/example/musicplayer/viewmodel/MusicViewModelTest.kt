@@ -30,8 +30,11 @@ class MusicViewModelTest {
         Dispatchers.setMain(testDispatcher)
         
         coEvery { repository.getPlaylists() } returns flowOf(emptyList())
+        coEvery { repository.getQueues() } returns flowOf(emptyList())
         coEvery { repository.getRecentlyPlayedIds() } returns flowOf(emptyList())
         coEvery { repository.getExcludeWhatsAppAudio() } returns flowOf(true)
+        coEvery { repository.getSyncLyricsEnabled() } returns flowOf(true)
+        coEvery { repository.getLyrics() } returns flowOf(emptyMap())
         coEvery { repository.fetchAllSongs() } returns emptyList()
         
         viewModel = MusicViewModel(repository, playbackManager)
@@ -122,5 +125,31 @@ class MusicViewModelTest {
         
         coVerify { playbackManager.pause() }
         assertNull(viewModel.playbackState.value.sleepTimerRemaining)
+    }
+
+    @Test
+    fun `deleteSong removes song from playback queue and deletes from repository`() = runTest {
+        val song = Song(1, "Title", "Artist", mockk(), 100, "Album")
+        coEvery { repository.deleteSong(any(), song) } returns null
+        coEvery { repository.fetchAllSongs() } returns emptyList()
+
+        var onDeletedCalled = false
+        viewModel.deleteSong(mockk(), song, onIntentSenderRequired = {}, onDeleted = { onDeletedCalled = true })
+        advanceUntilIdle()
+
+        coVerify { playbackManager.removeSongFromQueue(1L) }
+        coVerify { repository.deleteSong(any(), song) }
+        assertEquals(true, onDeletedCalled)
+    }
+
+    @Test
+    fun `setSyncLyricsEnabled updates state and saves to repository`() = runTest {
+        coEvery { repository.saveSyncLyricsEnabled(any()) } just Runs
+
+        viewModel.setSyncLyricsEnabled(false)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.syncLyricsEnabled.value)
+        coVerify { repository.saveSyncLyricsEnabled(false) }
     }
 }

@@ -81,9 +81,12 @@ class PlaybackManager(private val context: Context) {
 
     fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean, tag: String = "context") {
         val player = _controller.value ?: return
+        if (songs.isEmpty()) return
 
         val mediaItems = songs.map { songToMediaItem(it, tag) }
-        player.setMediaItems(mediaItems, startIndex, 0L)
+        val actualStartIndex = if (shuffle) songs.indices.random() else startIndex.coerceIn(0, songs.lastIndex)
+
+        player.setMediaItems(mediaItems, actualStartIndex, 0L)
         player.shuffleModeEnabled = shuffle
         player.prepare()
         player.play()
@@ -168,6 +171,61 @@ class PlaybackManager(private val context: Context) {
         val player = _controller.value ?: return
         if (index in 0 until player.mediaItemCount) {
             player.removeMediaItem(index)
+        }
+    }
+
+    fun removeSongFromQueue(songId: Long) {
+        val player = _controller.value ?: return
+        val count = player.mediaItemCount
+        val indicesToRemove = mutableListOf<Int>()
+        var isCurrentPlayingRemoved = false
+
+        val currentItemIndex = player.currentMediaItemIndex
+
+        for (i in 0 until count) {
+            val item = player.getMediaItemAt(i)
+            val mediaId = item.mediaId
+            val id = mediaId.split("|").firstOrNull()?.toLongOrNull()
+                ?: item.mediaMetadata.extras?.getLong("songId")
+            if (id == songId) {
+                indicesToRemove.add(i)
+                if (i == currentItemIndex) {
+                    isCurrentPlayingRemoved = true
+                }
+            }
+        }
+
+        if (indicesToRemove.isEmpty()) {
+            val currentItem = player.currentMediaItem
+            val currentId = currentItem?.mediaId?.split("|")?.firstOrNull()?.toLongOrNull()
+                ?: currentItem?.mediaMetadata?.extras?.getLong("songId")
+            if (currentId == songId) {
+                player.stop()
+                player.clearMediaItems()
+            }
+            return
+        }
+
+        if (isCurrentPlayingRemoved) {
+            if (count > indicesToRemove.size) {
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                } else if (player.hasPreviousMediaItem()) {
+                    player.seekToPreviousMediaItem()
+                } else {
+                    player.stop()
+                }
+            } else {
+                player.stop()
+                player.clearMediaItems()
+                return
+            }
+        }
+
+        for (index in indicesToRemove.sortedDescending()) {
+            if (index in 0 until player.mediaItemCount) {
+                player.removeMediaItem(index)
+            }
         }
     }
 

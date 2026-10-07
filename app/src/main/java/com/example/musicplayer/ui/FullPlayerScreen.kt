@@ -1,6 +1,9 @@
 package com.example.musicplayer.ui
 
+import android.content.Intent
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,10 +47,38 @@ fun FullPlayerScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.playbackState.collectAsState()
+    val lyricsMap by viewModel.lyricsMap.collectAsState()
+    val isFetchingLyrics by viewModel.isFetchingLyrics.collectAsState()
+    val syncLyricsEnabled by viewModel.syncLyricsEnabled.collectAsState()
+    
     var showSpeedMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
+    var showLyricsView by remember { mutableStateOf(false) }
+    var showEditLyricsDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var hasNavigatedBack by remember { mutableStateOf(false) }
+    val safeOnBack = {
+        if (!hasNavigatedBack) {
+            hasNavigatedBack = true
+            onBack()
+        }
+    }
+
+    val deleteSong = rememberDeleteSongHandler(viewModel, onDeleted = {
+        if (viewModel.playbackState.value.currentSong == null) {
+            safeOnBack()
+        }
+    })
+
+    LaunchedEffect(state.currentSong) {
+        if (state.currentSong == null && state.currentTitle == "Not Playing") {
+            safeOnBack()
+        }
+    }
+
+    val currentLyrics = state.currentSong?.let { lyricsMap[it.id] } ?: ""
     
     val defaultPrimary = MaterialTheme.colorScheme.primaryContainer
     var dominantColor by remember { mutableStateOf(defaultPrimary) }
@@ -91,7 +122,7 @@ fun FullPlayerScreen(
             CenterAlignedTopAppBar(
                 title = { Text("Now Playing", style = MaterialTheme.typography.titleMedium, color = controlColor) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = safeOnBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = controlColor)
                     }
                 },
@@ -100,6 +131,11 @@ fun FullPlayerScreen(
                         Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = controlColor)
                     }
                     DropdownMenu(expanded = showOptionsMenu, onDismissRequest = { showOptionsMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("View / Edit Lyrics") },
+                            onClick = { showOptionsMenu = false; showEditLyricsDialog = true },
+                            leadingIcon = { Icon(Icons.Default.Lyrics, null) }
+                        )
                         DropdownMenuItem(
                             text = { Text("Add to Playlist") },
                             onClick = { showOptionsMenu = false; showPlaylistDialog = true },
@@ -122,6 +158,14 @@ fun FullPlayerScreen(
                                 state.currentSong?.let { viewModel.setAsRingtone(context, it) }
                             },
                             leadingIcon = { Icon(Icons.Default.Notifications, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showOptionsMenu = false
+                                showDeleteDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
                         )
                     }
                 },
@@ -147,20 +191,51 @@ fun FullPlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Card(
-                modifier = Modifier.size(320.dp).aspectRatio(1f),
-                shape = MaterialTheme.shapes.extraLarge,
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Crossfade(targetState = state.currentSong?.albumArtUri, label = "AlbumArt") { uri ->
-                    AsyncImage(
-                        model = uri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        error = painterResource(R.drawable.ic_default_art),
-                        placeholder = painterResource(R.drawable.ic_default_art)
+            if (showLyricsView) {
+                val fetchOnlineLambda: () -> Unit = {
+                    state.currentSong?.let { song ->
+                        viewModel.fetchLyricsOnline(song) { success ->
+                            if (success) {
+                                Toast.makeText(context, "Lyrics loaded!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "No lyrics found online for this track", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(320.dp)
+                        .aspectRatio(1f)
+                ) {
+                    LyricsView(
+                        lyricsText = currentLyrics,
+                        currentPositionMs = state.currentPosition,
+                        contentColor = controlColor,
+                        isFetching = isFetchingLyrics,
+                        isSyncEnabled = syncLyricsEnabled,
+                        onToggleSync = { viewModel.setSyncLyricsEnabled(it) },
+                        onSeekTo = { viewModel.seekTo(it) },
+                        onEditLyrics = { showEditLyricsDialog = true },
+                        onSearchOnline = fetchOnlineLambda
                     )
+                }
+            } else {
+                Card(
+                    modifier = Modifier.size(320.dp).aspectRatio(1f),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Crossfade(targetState = state.currentSong, label = "AlbumArt") { song ->
+                        AsyncImage(
+                            model = song?.albumArtUri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            error = painterResource(R.drawable.ic_default_art)
+                        )
+                    }
                 }
             }
 
@@ -174,13 +249,32 @@ fun FullPlayerScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = state.currentArtist,
                     style = MaterialTheme.typography.titleLarge,
                     color = controlColor.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                SingleChoiceSegmentedButtonRow {
+                    SegmentedButton(
+                        selected = !showLyricsView,
+                        onClick = { showLyricsView = false },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        icon = { Icon(Icons.Default.Album, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    ) {
+                        Text("Cover Art", style = MaterialTheme.typography.labelMedium)
+                    }
+                    SegmentedButton(
+                        selected = showLyricsView,
+                        onClick = { showLyricsView = true },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        icon = { Icon(Icons.Default.Lyrics, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    ) {
+                        Text("Lyrics", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
 
             Column {
@@ -287,6 +381,40 @@ fun FullPlayerScreen(
     if (showPlaylistDialog) {
         state.currentSong?.let { song ->
             AddToPlaylistDialog(viewModel = viewModel, song = song, onDismiss = { showPlaylistDialog = false })
+        }
+    }
+
+    if (showDeleteDialog) {
+        state.currentSong?.let { song ->
+            DeleteSongConfirmDialog(
+                song = song,
+                onConfirm = { deleteSong(song) },
+                onDismiss = { showDeleteDialog = false }
+            )
+        }
+    }
+
+    if (showEditLyricsDialog) {
+        state.currentSong?.let { song ->
+            EditLyricsDialog(
+                songTitle = song.title,
+                songArtist = song.artist,
+                initialLyrics = currentLyrics,
+                isFetching = isFetchingLyrics,
+                onSave = { newLyrics ->
+                    viewModel.saveLyrics(song.id, newLyrics)
+                },
+                onDismiss = { showEditLyricsDialog = false },
+                onSearchOnline = {
+                    viewModel.fetchLyricsOnline(song) { success ->
+                        if (success) {
+                            Toast.makeText(context, "Lyrics loaded!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "No lyrics found online for this track", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
         }
     }
 }

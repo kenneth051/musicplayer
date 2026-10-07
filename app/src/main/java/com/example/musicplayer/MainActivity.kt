@@ -137,7 +137,14 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
             )
         }
         composable("full_player") {
-            FullPlayerScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            FullPlayerScreen(
+                viewModel = viewModel,
+                onBack = {
+                    if (navController.currentDestination?.route == "full_player") {
+                        navController.popBackStack("song_list", inclusive = false)
+                    }
+                }
+            )
         }
         composable(
             route = "playlist_detail/{playlistId}",

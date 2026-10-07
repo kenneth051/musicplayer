@@ -2,6 +2,7 @@ package com.example.musicplayer.viewmodel
 
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.database.ContentObserver
 import android.media.RingtoneManager
 import android.net.Uri
@@ -15,6 +16,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import com.example.musicplayer.data.LyricsFetcher
 import com.example.musicplayer.data.MusicRepository
 import com.example.musicplayer.data.Playlist
 import com.example.musicplayer.data.Queue
@@ -64,6 +66,15 @@ class MusicViewModel(
 
     private val _excludeWhatsAppAudio = MutableStateFlow(true)
     val excludeWhatsAppAudio: StateFlow<Boolean> = _excludeWhatsAppAudio
+
+    private val _lyricsMap = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val lyricsMap: StateFlow<Map<Long, String>> = _lyricsMap
+
+    private val _isFetchingLyrics = MutableStateFlow(false)
+    val isFetchingLyrics: StateFlow<Boolean> = _isFetchingLyrics
+
+    private val _syncLyricsEnabled = MutableStateFlow(true)
+    val syncLyricsEnabled: StateFlow<Boolean> = _syncLyricsEnabled
 
     private val effectiveSongs: StateFlow<List<Song>> = combine(_songs, _excludeWhatsAppAudio) { songs, exclude ->
         if (exclude) songs.filterNot { it.parentFolder.contains("WhatsApp", ignoreCase = true) } else songs
@@ -164,6 +175,37 @@ class MusicViewModel(
                 _excludeWhatsAppAudio.value = repo.getExcludeWhatsAppAudio().first()
             }
         }
+        viewModelScope.launch {
+            repository?.getLyrics()?.collect { _lyricsMap.value = it }
+        }
+        viewModelScope.launch {
+            repository?.getSyncLyricsEnabled()?.collect { _syncLyricsEnabled.value = it }
+        }
+    }
+
+    fun setSyncLyricsEnabled(enabled: Boolean) {
+        _syncLyricsEnabled.value = enabled
+        viewModelScope.launch { repository?.saveSyncLyricsEnabled(enabled) }
+    }
+
+    fun saveLyrics(songId: Long, lyricsText: String) {
+        viewModelScope.launch {
+            repository?.saveLyrics(songId, lyricsText)
+        }
+    }
+
+    fun fetchLyricsOnline(song: Song, onResult: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            _isFetchingLyrics.value = true
+            val fetched = LyricsFetcher.fetchLyrics(song.title, song.artist)
+            if (!fetched.isNullOrBlank()) {
+                saveLyrics(song.id, fetched)
+                onResult?.invoke(true)
+            } else {
+                onResult?.invoke(false)
+            }
+            _isFetchingLyrics.value = false
+        }
     }
 
     fun setExcludeWhatsAppAudio(exclude: Boolean) {
@@ -215,12 +257,14 @@ class MusicViewModel(
             incrementPlayCount(currentSong)
         }
 
+        val hasValidItem = player.currentMediaItem != null && currentSong != null
+
         _playbackState.value = _playbackState.value.copy(
-            isPlaying = player.isPlaying,
-            currentTitle = player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Not Playing",
-            currentArtist = player.currentMediaItem?.mediaMetadata?.artist?.toString() ?: "",
-            currentDuration = player.duration.coerceAtLeast(0L),
-            currentPosition = player.currentPosition.coerceAtLeast(0L),
+            isPlaying = if (hasValidItem) player.isPlaying else false,
+            currentTitle = if (hasValidItem) (player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Not Playing") else "Not Playing",
+            currentArtist = if (hasValidItem) (player.currentMediaItem?.mediaMetadata?.artist?.toString() ?: "") else "",
+            currentDuration = if (hasValidItem) player.duration.coerceAtLeast(0L) else 0L,
+            currentPosition = if (hasValidItem) player.currentPosition.coerceAtLeast(0L) else 0L,
             shuffleModeEnabled = player.shuffleModeEnabled,
             repeatMode = player.repeatMode,
             playbackSpeed = player.playbackParameters.speed,
@@ -247,7 +291,12 @@ class MusicViewModel(
 
     private fun startProgressTracking(player: Player) {
         progressJob?.cancel()
-        progressJob = viewModelScope.launch { while (true) { updatePlaybackState(player); delay(1000) } }
+        progressJob = viewModelScope.launch {
+            while (true) {
+                updatePlaybackState(player)
+                delay(200)
+            }
+        }
     }
 
     private fun stopProgressTracking() { progressJob?.cancel() }
@@ -291,6 +340,25 @@ class MusicViewModel(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
+        }
+    }
+
+    fun deleteSong(context: Context, song: Song, onIntentSenderRequired: (IntentSender) -> Unit, onDeleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            playbackManager?.removeSongFromQueue(song.id)
+            val intentSender = repository?.deleteSong(context, song)
+            if (intentSender != null) {
+                onIntentSenderRequired(intentSender)
+            } else {
+                loadSongs(context)
+                onDeleted()
+            }
+        }
+    }
+
+    fun onSongDeleted(context: Context) {
+        viewModelScope.launch {
+            loadSongs(context)
         }
     }
 

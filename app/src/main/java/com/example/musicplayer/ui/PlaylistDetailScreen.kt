@@ -75,7 +75,7 @@ fun PlaylistDetailScreen(
                         PlaylistSongListItem(
                             song = song,
                             onClick = { 
-                                viewModel.playPlaylist(playlistObj!!, song)
+                                playlistObj?.let { viewModel.playPlaylist(it, song) }
                                 onNavigateToPlayer()
                             }
                         )

@@ -128,3 +128,32 @@ fun MiniPlayer(
         }
     }
 }
+
+@Composable
+fun DeleteConfirmationDialog(
+    songTitle: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete Song") },
+        text = { Text("Are you sure you want to delete \"$songTitle\" from your device storage? This action cannot be undone.") },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm()
+                    onDismiss()
+                },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}

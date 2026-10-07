@@ -1,8 +1,11 @@
 package com.example.musicplayer.data
 
+import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.Context
+import android.content.IntentSender
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -84,4 +87,26 @@ class MusicRepository(private val context: Context) {
     suspend fun savePlayCounts(counts: Map<Long, Int>) = persistence.savePlayCounts(counts)
     fun getExcludeWhatsAppAudio() = persistence.excludeWhatsAppAudio
     suspend fun saveExcludeWhatsAppAudio(exclude: Boolean) = persistence.saveExcludeWhatsAppAudio(exclude)
+    fun getSyncLyricsEnabled() = persistence.syncLyricsEnabled
+    suspend fun saveSyncLyricsEnabled(enabled: Boolean) = persistence.saveSyncLyricsEnabled(enabled)
+    fun getLyrics() = persistence.lyrics
+    suspend fun saveLyrics(songId: Long, lyricsText: String) = persistence.saveLyrics(songId, lyricsText)
+
+    suspend fun deleteSong(context: Context, song: Song): IntentSender? = withContext(Dispatchers.IO) {
+        try {
+            val rows = context.contentResolver.delete(song.contentUri, null, null)
+            if (rows > 0) null else null
+        } catch (e: SecurityException) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val pendingIntent = MediaStore.createDeleteRequest(context.contentResolver, listOf(song.contentUri))
+                pendingIntent.intentSender
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
+                e.userAction.actionIntent.intentSender
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

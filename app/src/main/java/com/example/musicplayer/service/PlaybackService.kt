@@ -5,10 +5,12 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.content.IntentCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -59,6 +61,20 @@ class PlaybackService : MediaSessionService() {
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
+
+        basePlayer.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e("PlaybackService", "Playback error occurred: ${error.message}", error)
+                if (basePlayer.hasNextMediaItem()) {
+                    basePlayer.seekToNextMediaItem()
+                    basePlayer.prepare()
+                    basePlayer.play()
+                } else {
+                    basePlayer.stop()
+                    basePlayer.clearMediaItems()
+                }
+            }
+        })
 
         val player = SmartForwardingPlayer(basePlayer)
 

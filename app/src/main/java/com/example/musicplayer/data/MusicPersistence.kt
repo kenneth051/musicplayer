@@ -91,4 +91,38 @@ class MusicPersistence(private val context: Context) {
             prefs[EXCLUDE_WHATSAPP_AUDIO_KEY] = exclude
         }
     }
+
+    private val SYNC_LYRICS_ENABLED_KEY = booleanPreferencesKey("sync_lyrics_enabled")
+
+    val syncLyricsEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[SYNC_LYRICS_ENABLED_KEY] ?: true
+    }
+
+    suspend fun saveSyncLyricsEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[SYNC_LYRICS_ENABLED_KEY] = enabled
+        }
+    }
+
+    private val LYRICS_KEY = stringPreferencesKey("lyrics")
+
+    val lyrics: Flow<Map<Long, String>> = context.dataStore.data.map { prefs ->
+        val json = prefs[LYRICS_KEY] ?: "{}"
+        val type = object : TypeToken<Map<Long, String>>() {}.type
+        gson.fromJson(json, type) ?: emptyMap()
+    }
+
+    suspend fun saveLyrics(songId: Long, lyricsText: String) {
+        context.dataStore.edit { prefs ->
+            val currentJson = prefs[LYRICS_KEY] ?: "{}"
+            val type = object : TypeToken<MutableMap<Long, String>>() {}.type
+            val map: MutableMap<Long, String> = gson.fromJson(currentJson, type) ?: mutableMapOf()
+            if (lyricsText.isBlank()) {
+                map.remove(songId)
+            } else {
+                map[songId] = lyricsText
+            }
+            prefs[LYRICS_KEY] = gson.toJson(map)
+        }
+    }
 }
