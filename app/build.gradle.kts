@@ -44,9 +44,8 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            // Disabling minification temporarily to rule out R8/ProGuard crashes
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
