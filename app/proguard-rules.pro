@@ -1,23 +1,39 @@
 # ====================================================================
-# PROGUARD / R8 RULES FOR VIBE MUSIC PLAYER
+# PROGUARD / R8 SURGICAL RULES FOR VIBE MUSIC PLAYER
 # ====================================================================
 
-# 1. PROTECT APP CLASSES & DATA MODELS
--keep class com.example.musicplayer.** { *; }
--keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
+# 1. SPECIFIC CLASSES ACCESSED REFLECTIVELY BY ANDROID OS MANIFEST
+-keep class com.example.musicplayer.MainActivity { *; }
+-keep class com.example.musicplayer.service.PlaybackService { *; }
 
-# 2. GSON RULES
+# 2. SPECIFIC VIEWMODELS ACCESSED REFLECTIVELY BY JETPACK
+-keep class com.example.musicplayer.viewmodel.MusicViewModel { <init>(...); }
+
+# 3. SPECIFIC DATA MODELS ACCESSED REFLECTIVELY BY GSON SERIALIZATION
+-keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
+-keep class com.example.musicplayer.data.Song { *; }
+-keep class com.example.musicplayer.data.Playlist { *; }
+-keep class com.example.musicplayer.data.Queue { *; }
+-keep class com.example.musicplayer.data.QueueItem { *; }
+-keep class com.example.musicplayer.data.LyricLine { *; }
+
+# 4. GSON REFLECTION RULES
 -keep class com.google.gson.** { *; }
 -keep class com.google.gson.reflect.TypeToken
 -keep class * extends com.google.gson.reflect.TypeToken
 
-# 3. MEDIA3 RULES
+# 5. MEDIA3 & SMART FORWARDING PLAYER
+-keep class com.example.musicplayer.service.SmartForwardingPlayer { *; }
+-keep class androidx.media3.** { *; }
 -dontwarn androidx.media3.**
+-keep class com.google.android.exoplayer2.** { *; }
 -dontwarn com.google.android.exoplayer2.**
 
-# 4. ADMOB & PLAY SERVICES
+# 6. ADMOB & PLAY SERVICES
+-keep class com.google.android.gms.ads.** { *; }
 -dontwarn com.google.android.gms.**
 
-# 5. COIL & COROUTINES
+# 7. COIL & COROUTINES
+-keep class coil.** { *; }
 -dontwarn coil.**
 -keep class kotlinx.coroutines.** { *; }
