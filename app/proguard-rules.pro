@@ -37,3 +37,8 @@
 -keep class coil.** { *; }
 -dontwarn coil.**
 -keep class kotlinx.coroutines.** { *; }
+
+# 8. FIREBASE & CRASHLYTICS
+-keepattributes SourceFile,LineNumberTable
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
