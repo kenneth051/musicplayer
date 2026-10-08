@@ -10,7 +10,6 @@ import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.io.File
 
 class MusicRepository(private val context: Context) {
     
@@ -49,8 +48,9 @@ class MusicRepository(private val context: Context) {
                 val albId = cursor.getLong(albIdCol)
                 val rawPath = if (dataCol >= 0) cursor.getString(dataCol) else null
                 val relativePath = if (relativePathCol >= 0) cursor.getString(relativePathCol) else null
+                val fullPathStr = rawPath ?: relativePath ?: ""
                 val parentFolder = when {
-                    !rawPath.isNullOrBlank() -> runCatching { File(rawPath).parentFile?.name }.getOrNull() ?: "Unknown"
+                    !rawPath.isNullOrBlank() -> rawPath.substringBeforeLast('/').substringAfterLast('/').ifBlank { "Unknown" }
                     !relativePath.isNullOrBlank() -> relativePath.trim('/').substringAfterLast('/').ifBlank { "Unknown" }
                     else -> "Unknown"
                 }
@@ -66,7 +66,8 @@ class MusicRepository(private val context: Context) {
                     contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id),
                     albumArtUri = artUri,
                     dateAdded = cursor.getLong(dateCol),
-                    parentFolder = parentFolder
+                    parentFolder = parentFolder,
+                    fullPath = fullPathStr
                 ))
             }
         }
@@ -87,6 +88,10 @@ class MusicRepository(private val context: Context) {
     suspend fun savePlayCounts(counts: Map<Long, Int>) = persistence.savePlayCounts(counts)
     fun getExcludeWhatsAppAudio() = persistence.excludeWhatsAppAudio
     suspend fun saveExcludeWhatsAppAudio(exclude: Boolean) = persistence.saveExcludeWhatsAppAudio(exclude)
+    fun getExcludeCallRecordings() = persistence.excludeCallRecordings
+    suspend fun saveExcludeCallRecordings(exclude: Boolean) = persistence.saveExcludeCallRecordings(exclude)
+    fun getExcludedFolders() = persistence.excludedFolders
+    suspend fun saveExcludedFolders(folders: Set<String>) = persistence.saveExcludedFolders(folders)
     fun getSyncLyricsEnabled() = persistence.syncLyricsEnabled
     suspend fun saveSyncLyricsEnabled(enabled: Boolean) = persistence.saveSyncLyricsEnabled(enabled)
     fun getLyrics() = persistence.lyrics

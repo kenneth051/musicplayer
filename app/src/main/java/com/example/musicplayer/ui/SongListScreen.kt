@@ -64,11 +64,14 @@ fun SongListScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
     val excludeWhatsAppAudio by viewModel.excludeWhatsAppAudio.collectAsState()
+    val excludeCallRecordings by viewModel.excludeCallRecordings.collectAsState()
+    val excludedFolders by viewModel.excludedFolders.collectAsState()
     val favoriteSongs = songs.filter { it.isFavorite }
 
     val selectedTab by viewModel.selectedTab.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
     var showSettingsMenu by remember { mutableStateOf(false) }
+    var showExcludedFoldersDialog by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf<Song?>(null) }
     var showQueueDialog by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
@@ -105,6 +108,26 @@ fun SongListScreen(
                                         )
                                     }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Exclude Call & Voice recordings") },
+                                    onClick = { viewModel.setExcludeCallRecordings(!excludeCallRecordings) },
+                                    trailingIcon = {
+                                        Checkbox(
+                                            checked = excludeCallRecordings,
+                                            onCheckedChange = { viewModel.setExcludeCallRecordings(it) }
+                                        )
+                                    }
+                                )
+                                if (excludedFolders.isNotEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("Hidden Folders (${excludedFolders.size})") },
+                                        onClick = {
+                                            showSettingsMenu = false
+                                            showExcludedFoldersDialog = true
+                                        },
+                                        trailingIcon = { Icon(Icons.Default.FolderOff, contentDescription = null) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -257,25 +280,39 @@ fun SongListScreen(
                 }
             } else if (selectedTab == 1) {
                 // Folders List
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(folders.keys.toList()) { folderName ->
-                        val folderSongs = folders[folderName] ?: emptyList()
-                        ListItem(
-                            modifier = Modifier.clickable { onNavigateToFolder(folderName) },
-                            headlineContent = { Text(folderName) },
-                            supportingContent = { Text("${folderSongs.size} songs") },
-                            leadingContent = { Icon(Icons.Default.Folder, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = {
-                                IconButton(onClick = { 
-                                    // Play all songs in this folder
-                                    viewModel.playPlaylist(Playlist(name = folderName, songIds = folderSongs.map { it.id }))
-                                    onNavigateToPlayer()
-                                }) {
-                                    Icon(Icons.Default.PlayCircle, contentDescription = "Play Folder")
+                val folderNames = remember(folders) { folders.keys.toList().sorted() }
+                if (folderNames.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("No folders found.")
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(folderNames, key = { it }) { folderName ->
+                            val folderSongs = remember(folders, folderName) { folders[folderName] ?: emptyList() }
+                            ListItem(
+                                modifier = Modifier.clickable { onNavigateToFolder(folderName) },
+                                headlineContent = { Text(folderName) },
+                                supportingContent = { Text("${folderSongs.size} songs") },
+                                leadingContent = { Icon(Icons.Default.Folder, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingContent = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = { 
+                                            viewModel.playPlaylist(Playlist(name = folderName, songIds = folderSongs.map { it.id }))
+                                            onNavigateToPlayer()
+                                        }) {
+                                            Icon(Icons.Default.PlayCircle, contentDescription = "Play Folder")
+                                        }
+                                        IconButton(onClick = {
+                                            viewModel.toggleExcludeFolder(folderName)
+                                            Toast.makeText(context, "\"$folderName\" folder hidden", Toast.LENGTH_SHORT).show()
+                                        }) {
+                                            Icon(Icons.Default.FolderOff, contentDescription = "Hide folder", tint = MaterialTheme.colorScheme.outline)
+                                        }
+                                    }
                                 }
-                            }
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            )
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        }
                     }
                 }
             } else if (selectedTab == 2) {
@@ -475,6 +512,43 @@ fun SongListScreen(
                 showCreatePlaylistDialog = false
             },
             onDismiss = { showCreatePlaylistDialog = false }
+        )
+    }
+
+    if (showExcludedFoldersDialog) {
+        AlertDialog(
+            onDismissRequest = { showExcludedFoldersDialog = false },
+            title = { Text("Hidden Folders") },
+            text = {
+                Column {
+                    Text(
+                        text = "These folders are currently hidden from your music library.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (excludedFolders.isEmpty()) {
+                        Text("No folders hidden.", style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
+                            items(excludedFolders.toList()) { folder ->
+                                ListItem(
+                                    headlineContent = { Text(folder) },
+                                    trailingContent = {
+                                        TextButton(onClick = { viewModel.restoreFolder(folder) }) {
+                                            Text("Unhide")
+                                        }
+                                    }
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showExcludedFoldersDialog = false }) { Text("Close") }
+            }
         )
     }
 }

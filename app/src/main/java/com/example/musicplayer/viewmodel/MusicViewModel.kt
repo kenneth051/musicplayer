@@ -67,6 +67,12 @@ class MusicViewModel(
     private val _excludeWhatsAppAudio = MutableStateFlow(true)
     val excludeWhatsAppAudio: StateFlow<Boolean> = _excludeWhatsAppAudio
 
+    private val _excludeCallRecordings = MutableStateFlow(true)
+    val excludeCallRecordings: StateFlow<Boolean> = _excludeCallRecordings
+
+    private val _excludedFolders = MutableStateFlow<Set<String>>(emptySet())
+    val excludedFolders: StateFlow<Set<String>> = _excludedFolders
+
     private val _lyricsMap = MutableStateFlow<Map<Long, String>>(emptyMap())
     val lyricsMap: StateFlow<Map<Long, String>> = _lyricsMap
 
@@ -76,8 +82,42 @@ class MusicViewModel(
     private val _syncLyricsEnabled = MutableStateFlow(true)
     val syncLyricsEnabled: StateFlow<Boolean> = _syncLyricsEnabled
 
-    private val effectiveSongs: StateFlow<List<Song>> = combine(_songs, _excludeWhatsAppAudio) { songs, exclude ->
-        if (exclude) songs.filterNot { it.parentFolder.contains("WhatsApp", ignoreCase = true) } else songs
+    private val effectiveSongs: StateFlow<List<Song>> = combine(
+        _songs,
+        _excludeWhatsAppAudio,
+        _excludeCallRecordings,
+        _excludedFolders
+    ) { songs, excludeWhatsApp, excludeCalls, excludedFolders ->
+        songs.filterNot { song ->
+            val folderLower = song.parentFolder.lowercase()
+            val pathLower = song.fullPath.lowercase()
+
+            // 1. Exclude explicitly hidden/excluded folders
+            if (song.parentFolder in excludedFolders) return@filterNot true
+
+            // 2. Filter WhatsApp Audio & Voice Notes
+            if (excludeWhatsApp && (
+                folderLower.contains("whatsapp") ||
+                pathLower.contains("whatsapp") ||
+                pathLower.contains("voice notes")
+            )) return@filterNot true
+
+            // 3. Filter Call & Voice Recordings
+            if (excludeCalls && (
+                folderLower.contains("call") ||
+                folderLower.contains("recorder") ||
+                folderLower.contains("recordings") ||
+                pathLower.contains("call_rec") ||
+                pathLower.contains("callrecord") ||
+                pathLower.contains("call_recording") ||
+                pathLower.contains("sound_recorder") ||
+                pathLower.contains("voice_recorder") ||
+                pathLower.contains("audio_recorder") ||
+                pathLower.contains("phone_record")
+            )) return@filterNot true
+
+            false
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val filteredSongs: StateFlow<List<Song>> = combine(effectiveSongs, _searchQuery, _sortOrder) { songs, query, sort ->
@@ -93,7 +133,7 @@ class MusicViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val folders: StateFlow<Map<String, List<Song>>> = effectiveSongs.map { songs ->
-        songs.groupBy { it.parentFolder }
+        songs.groupBy { it.parentFolder }.filterKeys { it.isNotBlank() && it != "Unknown" }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val recentlyPlayed: StateFlow<List<Song>> = combine(_recentlyPlayed, effectiveSongs) { recent, songs ->
@@ -173,6 +213,8 @@ class MusicViewModel(
                 val recentIds = repo.getRecentlyPlayedIds().first()
                 _recentlyPlayed.value = _songs.value.filter { it.id in recentIds }
                 _excludeWhatsAppAudio.value = repo.getExcludeWhatsAppAudio().first()
+                _excludeCallRecordings.value = repo.getExcludeCallRecordings().first()
+                _excludedFolders.value = repo.getExcludedFolders().first()
             }
         }
         viewModelScope.launch {
@@ -181,6 +223,24 @@ class MusicViewModel(
         viewModelScope.launch {
             repository?.getSyncLyricsEnabled()?.collect { _syncLyricsEnabled.value = it }
         }
+    }
+
+    fun setExcludeCallRecordings(exclude: Boolean) {
+        _excludeCallRecordings.value = exclude
+        viewModelScope.launch { repository?.saveExcludeCallRecordings(exclude) }
+    }
+
+    fun toggleExcludeFolder(folderName: String) {
+        val current = _excludedFolders.value
+        val updated = if (folderName in current) current - folderName else current + folderName
+        _excludedFolders.value = updated
+        viewModelScope.launch { repository?.saveExcludedFolders(updated) }
+    }
+
+    fun restoreFolder(folderName: String) {
+        val updated = _excludedFolders.value - folderName
+        _excludedFolders.value = updated
+        viewModelScope.launch { repository?.saveExcludedFolders(updated) }
     }
 
     fun setSyncLyricsEnabled(enabled: Boolean) {

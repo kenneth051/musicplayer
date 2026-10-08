@@ -15,6 +15,7 @@ data class Song(
     val albumArtUri: Uri? = null,
     val dateAdded: Long = 0L,
     val parentFolder: String = "",
+    val fullPath: String = "",
     val playCount: Int = 0,
     val isFavorite: Boolean = false
 )

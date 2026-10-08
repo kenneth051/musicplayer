@@ -92,6 +92,31 @@ class MusicPersistence(private val context: Context) {
         }
     }
 
+    private val EXCLUDE_CALL_RECORDINGS_KEY = booleanPreferencesKey("exclude_call_recordings")
+    private val EXCLUDED_FOLDERS_KEY = stringPreferencesKey("excluded_folders")
+
+    val excludeCallRecordings: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[EXCLUDE_CALL_RECORDINGS_KEY] ?: true
+    }
+
+    suspend fun saveExcludeCallRecordings(exclude: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[EXCLUDE_CALL_RECORDINGS_KEY] = exclude
+        }
+    }
+
+    val excludedFolders: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        val json = prefs[EXCLUDED_FOLDERS_KEY] ?: "[]"
+        val type = object : TypeToken<Set<String>>() {}.type
+        gson.fromJson(json, type) ?: emptySet()
+    }
+
+    suspend fun saveExcludedFolders(folders: Set<String>) {
+        context.dataStore.edit { prefs ->
+            prefs[EXCLUDED_FOLDERS_KEY] = gson.toJson(folders)
+        }
+    }
+
     private val SYNC_LYRICS_ENABLED_KEY = booleanPreferencesKey("sync_lyrics_enabled")
 
     val syncLyricsEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
