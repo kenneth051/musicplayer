@@ -3,6 +3,8 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 // Release signing credentials live outside the repo (see .gitignore); this file is absent on
@@ -106,4 +108,9 @@ dependencies {
     implementation("androidx.media3:media3-session:1.8.0")
     implementation("androidx.media3:media3-ui:1.8.0")
     implementation("androidx.media:media:1.7.0")
+
+    // Firebase & Crashlytics
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-analytics")
 }
