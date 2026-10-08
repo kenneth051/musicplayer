@@ -50,7 +50,7 @@ android {
             isShrinkResources = true
             
             ndk {
-                debugSymbolLevel = "SYMBOL_TABLE"
+                debugSymbolLevel = "FULL"
             }
 
             proguardFiles(
