@@ -42,3 +42,13 @@
 -keepattributes SourceFile,LineNumberTable
 -keep class com.google.firebase.** { *; }
 -dontwarn com.google.firebase.**
+
+# 9. ANDROIDX APP STARTUP, WORKMANAGER & ROOM DATABASE GENERATED IMPL CLASSES
+-keep class androidx.startup.** { *; }
+-keep class * implements androidx.startup.Initializer { *; }
+-keep class androidx.work.** { *; }
+-dontwarn androidx.work.**
+-keep class **.*_Impl { *; }
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class androidx.room.** { *; }
+-dontwarn androidx.room.**

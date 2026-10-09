@@ -23,6 +23,7 @@ import com.example.musicplayer.data.Queue
 import com.example.musicplayer.data.QueueItem
 import com.example.musicplayer.data.Song
 import com.example.musicplayer.player.PlaybackManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -292,19 +293,33 @@ class MusicViewModel(
         updatePlaybackState(player)
     }
 
+    private var updateQueueJob: Job? = null
+
     private fun updateActiveQueue(player: Player) {
-        val queue = mutableListOf<QueueItem>()
-        for (i in 0 until player.mediaItemCount) {
-            val item = player.getMediaItemAt(i)
-            val mediaId = item.mediaId
-            val songId = mediaId.split("|").firstOrNull()?.toLongOrNull()
-            
-            val song = _songs.value.find { it.id == songId }
-            if (song != null) {
-                queue.add(QueueItem(queueId = mediaId, song = song))
-            }
+        updateQueueJob?.cancel()
+        val currentSongs = _songs.value
+        val itemCount = player.mediaItemCount
+        if (itemCount == 0) {
+            _activeQueue.value = emptyList()
+            return
         }
-        _activeQueue.value = queue
+
+        updateQueueJob = viewModelScope.launch(Dispatchers.Default) {
+            val songMap = currentSongs.associateBy { it.id }
+            val queue = ArrayList<QueueItem>(itemCount)
+            for (i in 0 until itemCount) {
+                val item = runCatching { player.getMediaItemAt(i) }.getOrNull() ?: break
+                val mediaId = item.mediaId
+                val songId = mediaId.split("|").firstOrNull()?.toLongOrNull()
+                    ?: item.mediaMetadata.extras?.getLong("songId")
+                
+                val song = songMap[songId]
+                if (song != null) {
+                    queue.add(QueueItem(queueId = mediaId, song = song))
+                }
+            }
+            _activeQueue.value = queue
+        }
     }
 
     private fun updatePlaybackState(player: Player) {
