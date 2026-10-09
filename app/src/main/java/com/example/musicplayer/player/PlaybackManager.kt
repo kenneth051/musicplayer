@@ -83,8 +83,19 @@ class PlaybackManager(private val context: Context) {
         val player = _controller.value ?: return
         if (songs.isEmpty()) return
 
-        val mediaItems = songs.map { songToMediaItem(it, tag) }
-        val actualStartIndex = if (shuffle) songs.indices.random() else startIndex.coerceIn(0, songs.lastIndex)
+        // Safety Window: For massive song lists (>1,000 items), window the list around startIndex
+        // to prevent Binder IPC limits (TransactionTooLargeException) and memory bloat.
+        val (windowedSongs, adjustedStartIndex) = if (songs.size > MAX_QUEUE_ITEMS) {
+            val start = (startIndex - 200).coerceAtLeast(0)
+            val end = (startIndex + 800).coerceAtMost(songs.size)
+            val subset = songs.subList(start, end)
+            Pair(subset, (startIndex - start).coerceIn(0, subset.lastIndex))
+        } else {
+            Pair(songs, startIndex)
+        }
+
+        val mediaItems = windowedSongs.map { songToMediaItem(it, tag) }
+        val actualStartIndex = if (shuffle) windowedSongs.indices.random() else adjustedStartIndex.coerceIn(0, windowedSongs.lastIndex)
 
         player.setMediaItems(mediaItems, actualStartIndex, 0L)
         player.shuffleModeEnabled = shuffle
@@ -255,5 +266,6 @@ class PlaybackManager(private val context: Context) {
 
     companion object {
         private const val TAG = "PlaybackManager"
+        private const val MAX_QUEUE_ITEMS = 1000
     }
 }
