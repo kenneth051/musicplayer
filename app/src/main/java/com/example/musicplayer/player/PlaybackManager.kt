@@ -112,7 +112,7 @@ class PlaybackManager(private val context: Context) {
         
         // Find the boundary where manual items end and context items begin
         for (i in insertIndex until player.mediaItemCount) {
-            val itemTag = player.getMediaItemAt(i).mediaId.split("|").getOrNull(2)
+            val itemTag = player.getMediaItemAt(i).mediaId.substringAfter('|').substringAfter('|')
             if (itemTag == "manual") {
                 insertIndex = i + 1
             } else {
@@ -136,7 +136,7 @@ class PlaybackManager(private val context: Context) {
         if (insertIndex > player.mediaItemCount) insertIndex = player.mediaItemCount
         
         for (i in insertIndex until player.mediaItemCount) {
-            val itemTag = player.getMediaItemAt(i).mediaId.split("|").getOrNull(2)
+            val itemTag = player.getMediaItemAt(i).mediaId.substringAfter('|').substringAfter('|')
             if (itemTag == "manual") {
                 insertIndex = i + 1
             } else {

@@ -13,8 +13,10 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -22,6 +24,7 @@ import com.example.musicplayer.MainActivity
 
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    private val visitedShuffleIds = mutableSetOf<String>()
 
     // Media3 only detects up to a double click (play/pause -> skip next) on the headset
     // button; triple click has to be counted ourselves to trigger the "previous" action.
@@ -49,17 +52,12 @@ class PlaybackService : MediaSessionService() {
         clickHandler.postDelayed(resolveClicksRunnable, MULTI_CLICK_TIMEOUT_MS)
     }
 
-    private fun findNextManualIndex(player: Player, currentIndex: Int): Int {
-        val currentItem = if (currentIndex in 0 until player.mediaItemCount) player.getMediaItemAt(currentIndex) else null
-        val currentTag = currentItem?.mediaId?.split("|")?.getOrNull(2)
-            ?: currentItem?.mediaMetadata?.extras?.getString("tag")
-        if (currentTag == "manual") return currentIndex
+    @OptIn(UnstableApi::class)
+    private fun findNextManualIndex(player: SmartForwardingPlayer, currentIndex: Int): Int {
+        if (player.isUnplayedManualItem(currentIndex)) return currentIndex
 
         for (i in 0 until player.mediaItemCount) {
-            val item = player.getMediaItemAt(i)
-            val tag = item.mediaId.split("|").getOrNull(2)
-                ?: item.mediaMetadata.extras?.getString("tag")
-            if (tag == "manual" && i != currentIndex) {
+            if (player.isUnplayedManualItem(i)) {
                 return i
             }
         }
@@ -80,11 +78,40 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
+        val player = SmartForwardingPlayer(basePlayer)
+
         basePlayer.addListener(object : Player.Listener {
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                visitedShuffleIds.clear()
+            }
+
+            override fun onShuffleModeEnabledChanged(enabled: Boolean) {
+                visitedShuffleIds.clear()
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (mediaItem != null) {
+                    val tag = mediaItem.mediaId.substringAfter('|').substringAfter('|')
+                        .ifEmpty { mediaItem.mediaMetadata.extras?.getString("tag") ?: "" }
+                    if (tag == "manual") {
+                        player.consumedManualIds.add(mediaItem.mediaId)
+                    }
+
+                    visitedShuffleIds.add(mediaItem.mediaId)
+
+                    // Reshuffle into a fresh random order whenever a full cycle completes in Repeat ALL mode
+                    if (basePlayer.shuffleModeEnabled && basePlayer.repeatMode == Player.REPEAT_MODE_ALL && basePlayer.mediaItemCount > 1) {
+                        if (visitedShuffleIds.size >= basePlayer.mediaItemCount) {
+                            visitedShuffleIds.clear()
+                            visitedShuffleIds.add(mediaItem.mediaId)
+                            basePlayer.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(basePlayer.mediaItemCount))
+                        }
+                    }
+                }
+
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && basePlayer.shuffleModeEnabled) {
                     val currentIndex = basePlayer.currentMediaItemIndex
-                    val nextManualIndex = findNextManualIndex(basePlayer, currentIndex)
+                    val nextManualIndex = findNextManualIndex(player, currentIndex)
                     if (nextManualIndex != -1 && nextManualIndex != currentIndex) {
                         basePlayer.seekToDefaultPosition(nextManualIndex)
                     }
@@ -103,8 +130,6 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         })
-
-        val player = SmartForwardingPlayer(basePlayer)
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(

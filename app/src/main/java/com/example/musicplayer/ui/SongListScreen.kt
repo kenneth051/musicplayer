@@ -155,11 +155,10 @@ fun SongListScreen(
                     )
                 )
 
-                TabRow(selectedTabIndex = selectedTab) {
+                TabRow(selectedTabIndex = selectedTab.coerceAtMost(2)) {
                     Tab(selected = selectedTab == 0, onClick = { viewModel.onSelectedTabChanged(0) }, text = { Text("Songs") })
                     Tab(selected = selectedTab == 1, onClick = { viewModel.onSelectedTabChanged(1) }, text = { Text("Folders") })
                     Tab(selected = selectedTab == 2, onClick = { viewModel.onSelectedTabChanged(2) }, text = { Text("Playlists") })
-                    Tab(selected = selectedTab == 3, onClick = { viewModel.onSelectedTabChanged(3) }, text = { Text("Queue") })
                 }
             }
         },
@@ -343,143 +342,6 @@ fun SongListScreen(
                                 headlineContent = { Text(playlist.name) },
                                 supportingContent = { Text("${playlist.songIds.size} songs") },
                                 leadingContent = { Icon(Icons.Default.LibraryMusic, contentDescription = null) }
-                            )
-                            HorizontalDivider()
-                        }
-                    }
-                }
-            } else if (selectedTab == 3) {
-                // Active Queue List - Spotify Style (History + Now Playing + Up Next)
-                val currentSongIndex = controller?.currentMediaItemIndex ?: -1
-                
-                val history = remember(activeQueue, currentSongIndex) {
-                    if (currentSongIndex > 0) activeQueue.take(currentSongIndex) else emptyList()
-                }
-                
-                val upNext = remember(activeQueue, currentSongIndex) {
-                    if (currentSongIndex == -1) {
-                        if (activeQueue.isNotEmpty()) activeQueue else emptyList()
-                    } else {
-                        activeQueue.drop(currentSongIndex + 1)
-                    }
-                }
-
-                val lazyListState = rememberLazyListState()
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = lazyListState
-                ) {
-                    // 1. History Section (Previously Played)
-                    if (history.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Recently Played",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                        items(history, key = { it.queueId }) { item ->
-                            ListItem(
-                                modifier = Modifier.clickable { viewModel.playFromActiveQueue(item) }.alpha(0.6f),
-                                headlineContent = { Text(item.song.title, style = MaterialTheme.typography.bodyMedium) },
-                                supportingContent = { Text(item.song.artist, style = MaterialTheme.typography.labelSmall) },
-                                leadingContent = {
-                                    Surface(modifier = Modifier.size(32.dp), shape = MaterialTheme.shapes.extraSmall) {
-                                        AsyncImage(
-                                            model = item.song.albumArtUri,
-                                            contentDescription = null,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop,
-                                            error = painterResource(R.drawable.ic_default_art)
-                                        )
-                                    }
-                                }
-                            )
-                        }
-                        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
-                    }
-
-                    // 2. Now Playing Section
-                    val activeCurrentSong = playbackState.currentSong
-                    if (activeCurrentSong != null) {
-                        item(key = "header_now_playing") {
-                            Text(
-                                "Now Playing",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                        item(key = "current_song_item") {
-                            SongListItem(
-                                song = activeCurrentSong,
-                                onClick = { onNavigateToPlayer() },
-                                onAddToPlaylist = { showPlaylistDialog = activeCurrentSong },
-                                onAddToQueue = { /* Already in queue */ },
-                                onToggleFavorite = { viewModel.toggleFavorite(activeCurrentSong) },
-                                onDelete = { showDeleteDialog = activeCurrentSong }
-                            )
-                        }
-                        item(key = "divider_now_playing") {
-                            HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        }
-                    }
-
-                    // 3. Up Next Section
-                    if (upNext.isEmpty()) {
-                        item(key = "empty_queue_msg") {
-                            Box(
-                                modifier = Modifier.fillParentMaxSize().padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No songs up next.")
-                            }
-                        }
-                    } else {
-                        item(key = "header_up_next") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "Up Next",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                                TextButton(onClick = { viewModel.clearActiveQueue() }) {
-                                    Text("Clear")
-                                }
-                            }
-                        }
-
-                        items(upNext, key = { it.queueId }) { item ->
-                            val song = item.song
-
-                            ListItem(
-                                modifier = Modifier
-                                    .animateItem()
-                                    .clickable { viewModel.playFromActiveQueue(item) },
-                                headlineContent = { Text(song.title) },
-                                supportingContent = { Text(song.artist) },
-                                leadingContent = {
-                                    Surface(modifier = Modifier.size(40.dp), shape = MaterialTheme.shapes.small) {
-                                        AsyncImage(
-                                            model = song.albumArtUri,
-                                            contentDescription = null,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop,
-                                            error = painterResource(R.drawable.ic_default_art)
-                                        )
-                                    }
-                                },
-                                trailingContent = {
-                                    IconButton(onClick = { viewModel.removeFromActiveQueue(item) }) {
-                                        Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove from Queue")
-                                    }
-                                }
                             )
                             HorizontalDivider()
                         }

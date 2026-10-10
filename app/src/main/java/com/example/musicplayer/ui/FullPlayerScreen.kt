@@ -198,7 +198,7 @@ fun FullPlayerScreen(
                             if (success) {
                                 Toast.makeText(context, "Lyrics loaded!", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, "No lyrics found online for this track", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "No lyrics found. Please verify the song title and artist name.", Toast.LENGTH_LONG).show()
                             }
                         }
                     }
@@ -213,6 +213,8 @@ fun FullPlayerScreen(
                         lyricsText = currentLyrics,
                         currentPositionMs = state.currentPosition,
                         contentColor = controlColor,
+                        songTitle = state.currentSong?.title ?: "",
+                        songArtist = state.currentSong?.artist ?: "",
                         isFetching = isFetchingLyrics,
                         isSyncEnabled = syncLyricsEnabled,
                         onToggleSync = { viewModel.setSyncLyricsEnabled(it) },

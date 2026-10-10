@@ -23,6 +23,7 @@ fun AddToPlaylistDialog(
     onDismiss: () -> Unit
 ) {
     val playlists by viewModel.playlists.collectAsState()
+    val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -37,7 +38,12 @@ fun AddToPlaylistDialog(
                         items(playlists) { playlist ->
                             ListItem(
                                 modifier = Modifier.clickable {
-                                    viewModel.addSongToPlaylist(song, playlist.id)
+                                    val added = viewModel.addSongToPlaylist(song, playlist.id)
+                                    if (added) {
+                                        Toast.makeText(context, "\"${song.title}\" added to ${playlist.name}", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "\"${song.title}\" is already in ${playlist.name}", Toast.LENGTH_SHORT).show()
+                                    }
                                     onDismiss()
                                 },
                                 headlineContent = { Text(playlist.name) },
@@ -65,6 +71,7 @@ fun AddToPlaylistDialog(
         CreatePlaylistDialog(
             onCreate = { name ->
                 viewModel.createPlaylist(name)
+                Toast.makeText(context, "Playlist \"$name\" created", Toast.LENGTH_SHORT).show()
                 showCreateDialog = false
             },
             onDismiss = { showCreateDialog = false }

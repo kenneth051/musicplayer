@@ -35,6 +35,8 @@ fun LyricsView(
     lyricsText: String,
     currentPositionMs: Long,
     contentColor: Color,
+    songTitle: String = "",
+    songArtist: String = "",
     isFetching: Boolean = false,
     isSyncEnabled: Boolean = true,
     onToggleSync: ((Boolean) -> Unit)? = null,
@@ -64,11 +66,20 @@ fun LyricsView(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "No lyrics added yet.",
+                text = "No lyrics found.",
                 style = MaterialTheme.typography.titleMedium,
-                color = contentColor.copy(alpha = 0.7f),
+                color = contentColor.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center
             )
+            if (songTitle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Tip: Verify if title \"$songTitle\"${if (songArtist.isNotBlank()) " or artist \"$songArtist\"" else ""} is valid, or tap Add Lyrics to paste manually.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onEditLyrics) {
@@ -254,7 +265,7 @@ fun EditLyricsDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
                 Text(
-                    text = "Tip: You can paste plain text or LRC format timestamps like [01:23.45] Lyrics line for auto-sync playback.",
+                    text = "Searching online for: \"$songTitle\"${if (songArtist.isNotBlank()) " by \"$songArtist\"" else ""}. Ensure the song title and artist are valid for best search results.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

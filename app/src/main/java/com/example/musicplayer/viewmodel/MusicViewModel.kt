@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.Settings
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaMetadata
@@ -383,7 +384,21 @@ class MusicViewModel(
     fun toggleFavorite(song: Song) {
         val updated = _songs.value.map { if (it.id == song.id) it.copy(isFavorite = !it.isFavorite) else it }
         _songs.value = updated
+        val updatedSong = updated.find { it.id == song.id } ?: song
         viewModelScope.launch { repository?.saveFavorites(updated.filter { it.isFavorite }.map { it.id }.toSet()) }
+
+        val controller = _controller.value
+        val mediaId = controller?.currentMediaItem?.mediaId ?: ""
+        val currentTag = mediaId.substringAfter('|').substringAfter('|')
+            .ifEmpty { controller?.currentMediaItem?.mediaMetadata?.extras?.getString("tag") ?: "" }
+
+        if (currentTag == "playlist|favorites") {
+            if (updatedSong.isFavorite) {
+                playbackManager?.playNext(updatedSong, tag = "playlist|favorites")
+            } else {
+                playbackManager?.removeSongFromQueue(updatedSong.id)
+            }
+        }
     }
 
     fun playSong(song: Song) = filteredSongs.value.let { list -> 
@@ -393,7 +408,8 @@ class MusicViewModel(
     
     fun playPlaylist(playlist: Playlist, song: Song? = null) {
         val list = _songs.value.filter { it.id in playlist.songIds }
-        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false, tag = "context")
+        if (list.isEmpty()) return
+        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false, tag = "playlist|${playlist.id}")
     }
 
     fun togglePlayPause() = playbackManager?.togglePlayPause()
@@ -408,8 +424,13 @@ class MusicViewModel(
         if (Settings.System.canWrite(context)) {
             try {
                 RingtoneManager.setActualDefaultRingtoneUri(context, RingtoneManager.TYPE_RINGTONE, song.contentUri)
-            } catch (e: Exception) { e.printStackTrace() }
+                Toast.makeText(context, "\"${song.title}\" set as ringtone", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Failed to set ringtone", Toast.LENGTH_SHORT).show()
+            }
         } else {
+            Toast.makeText(context, "Please grant permission to modify system settings to set ringtone", Toast.LENGTH_LONG).show()
             val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
                 data = Uri.parse("package:${context.packageName}")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -465,10 +486,25 @@ class MusicViewModel(
         viewModelScope.launch { repository?.savePlaylists(updated) }
     }
 
-    fun addSongToPlaylist(song: Song, playlistId: String) {
-        val updated = _playlists.value.map { if (it.id == playlistId && song.id !in it.songIds) it.copy(songIds = it.songIds + song.id) else it }
+    fun addSongToPlaylist(song: Song, playlistId: String): Boolean {
+        val playlist = _playlists.value.find { it.id == playlistId } ?: return false
+        if (song.id in playlist.songIds) {
+            return false
+        }
+        val updated = _playlists.value.map { if (it.id == playlistId) it.copy(songIds = it.songIds + song.id) else it }
         _playlists.value = updated
         viewModelScope.launch { repository?.savePlaylists(updated) }
+
+        val controller = _controller.value
+        val mediaId = controller?.currentMediaItem?.mediaId ?: ""
+        val currentTag = mediaId.substringAfter('|').substringAfter('|')
+            .ifEmpty { controller?.currentMediaItem?.mediaMetadata?.extras?.getString("tag") ?: "" }
+
+        if (currentTag == "playlist|$playlistId") {
+            playbackManager?.playNext(song, tag = "playlist|$playlistId")
+        }
+
+        return true
     }
 
     fun enqueueSong(song: Song) {
@@ -537,6 +573,10 @@ class MusicViewModel(
             try {
                 _songs.value = repository?.fetchAllSongs() ?: emptyList()
                 loadStoredMetadata()
+                _controller.value?.let { player ->
+                    updatePlaybackState(player)
+                    updateActiveQueue(player)
+                }
             } catch (e: Exception) {
                 _songs.value = emptyList()
             } finally {
