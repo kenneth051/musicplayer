@@ -139,8 +139,8 @@ class MusicViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val recentlyPlayed: StateFlow<List<Song>> = combine(_recentlyPlayed, effectiveSongs) { recent, songs ->
-        val effectiveIds = songs.map { it.id }.toSet()
-        recent.filter { it.id in effectiveIds }
+        val songMap = songs.associateBy { it.id }
+        recent.mapNotNull { songMap[it.id] }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     private val _playbackState = MutableStateFlow(PlaybackState())
@@ -349,7 +349,7 @@ class MusicViewModel(
     }
 
     private fun addToRecentlyPlayed(song: Song) {
-        val updated = (_recentlyPlayed.value.toMutableList().apply { removeAll { it.id == song.id }; add(0, song) }).take(20)
+        val updated = (_recentlyPlayed.value.toMutableList().apply { removeAll { it.id == song.id }; add(0, song) }).take(10)
         _recentlyPlayed.value = updated
         viewModelScope.launch { repository?.saveRecentlyPlayedIds(updated.map { it.id }) }
     }
@@ -402,14 +402,18 @@ class MusicViewModel(
     }
 
     fun playSong(song: Song) = filteredSongs.value.let { list -> 
-        playbackManager?.play(list, list.indexOf(song).coerceAtLeast(0), false, tag = "context") 
+        val targetIndex = list.indexOfFirst { it.id == song.id }
+        val index = if (targetIndex != -1) targetIndex else 0
+        playbackManager?.play(list, index, false, tag = "context") 
     }
     fun shuffleAll() = playbackManager?.play(effectiveSongs.value, 0, true, tag = "context")
     
     fun playPlaylist(playlist: Playlist, song: Song? = null) {
         val list = _songs.value.filter { it.id in playlist.songIds }
         if (list.isEmpty()) return
-        playbackManager?.play(list, if (song != null) list.indexOf(song).coerceAtLeast(0) else 0, false, tag = "playlist|${playlist.id}")
+        val targetIndex = if (song != null) list.indexOfFirst { it.id == song.id } else 0
+        val index = if (targetIndex != -1) targetIndex else 0
+        playbackManager?.play(list, index, false, tag = "playlist|${playlist.id}")
     }
 
     fun togglePlayPause() = playbackManager?.togglePlayPause()
