@@ -8,7 +8,10 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import com.example.musicplayer.data.Song
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -38,6 +41,9 @@ import com.example.musicplayer.viewmodel.MusicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +64,7 @@ fun FullPlayerScreen(
     var showLyricsView by remember { mutableStateOf(false) }
     var showEditLyricsDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSongDetailsDialog by remember { mutableStateOf(false) }
     var hasNavigatedBack by remember { mutableStateOf(false) }
     val safeOnBack = {
         if (!hasNavigatedBack) {
@@ -131,6 +138,11 @@ fun FullPlayerScreen(
                         Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = controlColor)
                     }
                     DropdownMenu(expanded = showOptionsMenu, onDismissRequest = { showOptionsMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Song Details") },
+                            onClick = { showOptionsMenu = false; showSongDetailsDialog = true },
+                            leadingIcon = { Icon(Icons.Default.Info, null) }
+                        )
                         DropdownMenuItem(
                             text = { Text("View / Edit Lyrics") },
                             onClick = { showOptionsMenu = false; showEditLyricsDialog = true },
@@ -418,6 +430,70 @@ fun FullPlayerScreen(
                 }
             )
         }
+    }
+
+    if (showSongDetailsDialog) {
+        state.currentSong?.let { song ->
+            SongDetailsDialog(song = song, onDismiss = { showSongDetailsDialog = false })
+        }
+    }
+}
+
+@Composable
+fun SongDetailsDialog(
+    song: Song,
+    onDismiss: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val formattedDate = remember(song.dateAdded) {
+        if (song.dateAdded > 0) {
+            dateFormat.format(Date(song.dateAdded * 1000L))
+        } else "Unknown"
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Song Details", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DetailRow(label = "Title", value = song.title)
+                DetailRow(label = "Artist", value = song.artist)
+                DetailRow(label = "Album", value = song.album)
+                DetailRow(label = "Duration", value = formatTime(song.duration.toLong()))
+                DetailRow(label = "Folder", value = song.parentFolder.ifBlank { "Unknown" })
+                if (song.fullPath.isNotBlank()) {
+                    DetailRow(label = "File Path", value = song.fullPath)
+                }
+                DetailRow(label = "Favorite", value = if (song.isFavorite) "Yes" else "No")
+                DetailRow(label = "Date Added", value = formattedDate)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
