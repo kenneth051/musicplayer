@@ -24,8 +24,8 @@ android {
         applicationId = "com.neth.vibemusicplayer"
         minSdk = 24
         targetSdk = 36
-        versionCode = 27
-        versionName = "3.1"
+        versionCode = 28
+        versionName = "3.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
