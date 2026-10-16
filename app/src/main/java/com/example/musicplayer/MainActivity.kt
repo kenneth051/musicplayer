@@ -73,6 +73,13 @@ class MainActivity : ComponentActivity() {
         checkRequiredPermissions()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (ContextCompat.checkSelfPermission(this, audioPermissionName()) == PackageManager.PERMISSION_GRANTED) {
+            showMusicPlayer()
+        }
+    }
+
     private fun checkRequiredPermissions() {
         val permissions = mutableListOf<String>()
         permissions.add(audioPermissionName())

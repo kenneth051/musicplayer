@@ -18,7 +18,7 @@ class MusicRepository(private val context: Context) {
     suspend fun fetchAllSongs(): List<Song> = withContext(Dispatchers.IO) {
         val songList = mutableListOf<Song>()
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(
+        val projectionList = mutableListOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
@@ -26,10 +26,14 @@ class MusicRepository(private val context: Context) {
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.RELATIVE_PATH
+            MediaStore.Audio.Media.DATA
         )
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            projectionList.add(MediaStore.Audio.Media.RELATIVE_PATH)
+        }
+        val projection = projectionList.toTypedArray()
+
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.SIZE} > 0"
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
 
         context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
