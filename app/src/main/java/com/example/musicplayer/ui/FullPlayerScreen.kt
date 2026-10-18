@@ -225,6 +225,8 @@ fun FullPlayerScreen(
                         lyricsText = currentLyrics,
                         currentPositionMs = state.currentPosition,
                         contentColor = controlColor,
+                        buttonContainerColor = fabContainer,
+                        buttonContentColor = fabIconColor,
                         songTitle = state.currentSong?.title ?: "",
                         songArtist = state.currentSong?.artist ?: "",
                         isFetching = isFetchingLyrics,
@@ -271,11 +273,21 @@ fun FullPlayerScreen(
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+                val segmentedColors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = fabContainer,
+                    activeContentColor = fabIconColor,
+                    activeBorderColor = controlColor.copy(alpha = 0.5f),
+                    inactiveContainerColor = Color.Transparent,
+                    inactiveContentColor = controlColor.copy(alpha = 0.7f),
+                    inactiveBorderColor = controlColor.copy(alpha = 0.3f)
+                )
+
                 SingleChoiceSegmentedButtonRow {
                     SegmentedButton(
                         selected = !showLyricsView,
                         onClick = { showLyricsView = false },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        colors = segmentedColors,
                         icon = { Icon(Icons.Default.Album, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     ) {
                         Text("Cover Art", style = MaterialTheme.typography.labelMedium)
@@ -284,6 +296,7 @@ fun FullPlayerScreen(
                         selected = showLyricsView,
                         onClick = { showLyricsView = true },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        colors = segmentedColors,
                         icon = { Icon(Icons.Default.Lyrics, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     ) {
                         Text("Lyrics", style = MaterialTheme.typography.labelMedium)

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +36,8 @@ fun LyricsView(
     lyricsText: String,
     currentPositionMs: Long,
     contentColor: Color,
+    buttonContainerColor: Color = contentColor,
+    buttonContentColor: Color = Color.White,
     songTitle: String = "",
     songArtist: String = "",
     isFetching: Boolean = false,
@@ -82,13 +85,23 @@ fun LyricsView(
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onEditLyrics) {
+                Button(
+                    onClick = onEditLyrics,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = buttonContainerColor,
+                        contentColor = buttonContentColor
+                    )
+                ) {
                     Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Add Lyrics")
                 }
                 onSearchOnline?.let { onSearch ->
-                    OutlinedButton(onClick = onSearch) {
+                    OutlinedButton(
+                        onClick = onSearch,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
+                        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.5f))
+                    ) {
                         Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Fetch Online")
@@ -200,12 +213,18 @@ fun LyricsView(
                             )
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = contentColor.copy(alpha = 0.2f),
-                            selectedLabelColor = contentColor,
-                            selectedLeadingIconColor = contentColor,
+                            selectedContainerColor = buttonContainerColor,
+                            selectedLabelColor = buttonContentColor,
+                            selectedLeadingIconColor = buttonContentColor,
                             containerColor = Color.Transparent,
-                            labelColor = contentColor.copy(alpha = 0.6f),
-                            iconColor = contentColor.copy(alpha = 0.6f)
+                            labelColor = contentColor.copy(alpha = 0.7f),
+                            iconColor = contentColor.copy(alpha = 0.7f)
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSyncEnabled,
+                            borderColor = contentColor.copy(alpha = 0.4f),
+                            selectedBorderColor = contentColor.copy(alpha = 0.5f)
                         )
                     )
                     Spacer(modifier = Modifier.width(8.dp))
