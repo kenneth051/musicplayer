@@ -199,7 +199,10 @@ fun FullPlayerScreen(
         ))
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -218,7 +221,8 @@ fun FullPlayerScreen(
 
                 Box(
                     modifier = Modifier
-                        .size(320.dp)
+                        .weight(1f, fill = false)
+                        .sizeIn(maxHeight = 300.dp)
                         .aspectRatio(1f)
                 ) {
                     LyricsView(
@@ -239,7 +243,10 @@ fun FullPlayerScreen(
                 }
             } else {
                 Card(
-                    modifier = Modifier.size(320.dp).aspectRatio(1f),
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .sizeIn(maxHeight = 300.dp)
+                        .aspectRatio(1f),
                     shape = MaterialTheme.shapes.extraLarge,
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
