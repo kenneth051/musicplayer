@@ -1,7 +1,11 @@
 package com.example.musicplayer.service
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -130,6 +134,19 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         })
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager
+            val channel = NotificationChannel(
+                DefaultMediaNotificationProvider.DEFAULT_CHANNEL_ID,
+                "Media Playback",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                setShowBadge(false) // Prevents "1" badge count on launcher app icon for media controls
+                description = "Media player notification controls"
+            }
+            notificationManager?.createNotificationChannel(channel)
+        }
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(

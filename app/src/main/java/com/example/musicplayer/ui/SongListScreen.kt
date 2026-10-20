@@ -76,14 +76,50 @@ fun SongListScreen(
     var showQueueDialog by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Song?>(null) }
+    var isSearchActive by remember { mutableStateOf(false) }
     val deleteSong = rememberDeleteSongHandler(viewModel)
 
     Scaffold(
         topBar = {
             Column {
-                CenterAlignedTopAppBar(
-                    title = { Text("music player - Dduke", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                TopAppBar(
+                    title = {
+                        if (isSearchActive || searchQuery.isNotEmpty()) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                placeholder = { Text("Search songs, artists...", style = MaterialTheme.typography.bodyMedium) },
+                                singleLine = true,
+                                maxLines = 1,
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                trailingIcon = {
+                                    IconButton(onClick = {
+                                        viewModel.onSearchQueryChanged("")
+                                        isSearchActive = false
+                                    }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Close Search", modifier = Modifier.size(20.dp))
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 48.dp),
+                                shape = MaterialTheme.shapes.large,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                )
+                            )
+                        } else {
+                            Text("music player - Dduke", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        }
+                    },
                     actions = {
+                        if (!isSearchActive && searchQuery.isEmpty()) {
+                            IconButton(onClick = { isSearchActive = true }) {
+                                Icon(Icons.Default.Search, contentDescription = "Search Songs")
+                            }
+                        }
                         Box {
                             IconButton(onClick = { showSettingsMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "Settings")
@@ -131,28 +167,6 @@ fun SongListScreen(
                             }
                         }
                     }
-                )
-                
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    placeholder = { Text("Search songs, artists, albums") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear")
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(MaterialTheme.shapes.medium),
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    )
                 )
 
                 TabRow(selectedTabIndex = selectedTab.coerceAtMost(2)) {
