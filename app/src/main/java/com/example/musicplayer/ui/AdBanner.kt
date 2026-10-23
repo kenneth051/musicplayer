@@ -20,7 +20,7 @@ import com.google.android.gms.ads.LoadAdError
 // Google's official test banner unit - always fills, safe to load on a dev device.
 // Real ad units shouldn't be loaded/viewed on dev devices (AdMob invalid-traffic policy),
 // and new ad units can have low/no fill for a while after creation anyway.
-private const val TEST_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111"
+private const val TEST_AD_UNIT_ID = "ca-app-pub-1223870447474307/6781470652"
 private const val PRODUCTION_AD_UNIT_ID = "ca-app-pub-1223870447474307/6781470652"
 
 /**

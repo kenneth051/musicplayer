@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.musicplayer.data.LrcParser
@@ -64,7 +65,10 @@ fun LyricsView(
         }
     } else if (lyricsText.isBlank()) {
         Column(
-            modifier = modifier.fillMaxSize().padding(24.dp),
+            modifier = modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -74,45 +78,95 @@ fun LyricsView(
                 color = contentColor.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center
             )
-            if (songTitle.isNotBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Tip: Verify if title \"$songTitle\"${if (songArtist.isNotBlank()) " or artist \"$songArtist\"" else ""} is valid, or tap Add Lyrics to paste manually.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = contentColor.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Button(
                     onClick = onEditLyrics,
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = buttonContainerColor,
                         contentColor = buttonContentColor
                     )
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Lyrics")
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 onSearchOnline?.let { onSearch ->
                     OutlinedButton(
                         onClick = onSearch,
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
                         border = BorderStroke(1.dp, contentColor.copy(alpha = 0.5f))
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Fetch Online")
+                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Fetch", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
+            }
+            if (songTitle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Tip: Verify if title \"$songTitle\"${if (songArtist.isNotBlank()) " or artist \"$songArtist\"" else ""} is valid, or tap Add to paste manually.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
             }
         }
     } else {
         val isLrc = remember(lyricsText) { LrcParser.isLrcFormat(lyricsText) }
 
         Column(modifier = modifier.fillMaxSize()) {
+            // Action Toolbar at top of lyrics view
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isLrc && onToggleSync != null) {
+                    FilterChip(
+                        selected = isSyncEnabled,
+                        onClick = { onToggleSync(!isSyncEnabled) },
+                        label = { Text(if (isSyncEnabled) "Sync On" else "Sync Off", fontSize = 12.sp) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (isSyncEnabled) Icons.Default.Sync else Icons.Default.SyncDisabled,
+                                contentDescription = "Toggle Lyrics Sync",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = buttonContainerColor,
+                            selectedLabelColor = buttonContentColor,
+                            selectedLeadingIconColor = buttonContentColor,
+                            containerColor = Color.Transparent,
+                            labelColor = contentColor.copy(alpha = 0.7f),
+                            iconColor = contentColor.copy(alpha = 0.7f)
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSyncEnabled,
+                            borderColor = contentColor.copy(alpha = 0.4f),
+                            selectedBorderColor = contentColor.copy(alpha = 0.5f)
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                IconButton(onClick = onEditLyrics) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Lyrics", tint = contentColor)
+                }
+            }
+
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (isLrc && isSyncEnabled) {
                     val parsedLines = remember(lyricsText) { LrcParser.parse(lyricsText) }
@@ -189,48 +243,6 @@ fun LyricsView(
                             lineHeight = 28.sp
                         )
                     }
-                }
-            }
-
-            // Action Toolbar below the lyrics container
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isLrc && onToggleSync != null) {
-                    FilterChip(
-                        selected = isSyncEnabled,
-                        onClick = { onToggleSync(!isSyncEnabled) },
-                        label = { Text(if (isSyncEnabled) "Sync On" else "Sync Off", fontSize = 12.sp) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (isSyncEnabled) Icons.Default.Sync else Icons.Default.SyncDisabled,
-                                contentDescription = "Toggle Lyrics Sync",
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = buttonContainerColor,
-                            selectedLabelColor = buttonContentColor,
-                            selectedLeadingIconColor = buttonContentColor,
-                            containerColor = Color.Transparent,
-                            labelColor = contentColor.copy(alpha = 0.7f),
-                            iconColor = contentColor.copy(alpha = 0.7f)
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSyncEnabled,
-                            borderColor = contentColor.copy(alpha = 0.4f),
-                            selectedBorderColor = contentColor.copy(alpha = 0.5f)
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                IconButton(onClick = onEditLyrics) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Lyrics", tint = contentColor)
                 }
             }
         }

@@ -297,7 +297,7 @@ fun FullPlayerScreen(
                         colors = segmentedColors,
                         icon = { Icon(Icons.Default.Album, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     ) {
-                        Text("Cover Art", style = MaterialTheme.typography.labelMedium)
+                        Text("Cover Art", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                     SegmentedButton(
                         selected = showLyricsView,
@@ -306,7 +306,7 @@ fun FullPlayerScreen(
                         colors = segmentedColors,
                         icon = { Icon(Icons.Default.Lyrics, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     ) {
-                        Text("Lyrics", style = MaterialTheme.typography.labelMedium)
+                        Text("Lyrics", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
