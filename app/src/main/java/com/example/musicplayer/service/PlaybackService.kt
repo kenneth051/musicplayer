@@ -103,9 +103,9 @@ class PlaybackService : MediaSessionService() {
 
                     visitedShuffleIds.add(mediaItem.mediaId)
 
-                    // Reshuffle into a fresh random order whenever a full cycle completes in Repeat ALL mode
-                    if (basePlayer.shuffleModeEnabled && basePlayer.repeatMode == Player.REPEAT_MODE_ALL && basePlayer.mediaItemCount > 1) {
-                        if (visitedShuffleIds.size >= basePlayer.mediaItemCount) {
+                    // Reshuffle into a fresh random order whenever a full cycle completes or end of shuffle queue is reached
+                    if (basePlayer.shuffleModeEnabled && basePlayer.mediaItemCount > 1) {
+                        if (visitedShuffleIds.size >= basePlayer.mediaItemCount || !basePlayer.hasNextMediaItem()) {
                             visitedShuffleIds.clear()
                             visitedShuffleIds.add(mediaItem.mediaId)
                             basePlayer.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(basePlayer.mediaItemCount))
@@ -118,6 +118,9 @@ class PlaybackService : MediaSessionService() {
                     val nextManualIndex = findNextManualIndex(player, currentIndex)
                     if (nextManualIndex != -1 && nextManualIndex != currentIndex) {
                         basePlayer.seekToDefaultPosition(nextManualIndex)
+                    } else if (!basePlayer.hasNextMediaItem() && basePlayer.mediaItemCount > 1) {
+                        basePlayer.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(basePlayer.mediaItemCount))
+                        basePlayer.seekToNextMediaItem()
                     }
                 }
             }

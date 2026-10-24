@@ -4,6 +4,8 @@ import androidx.annotation.OptIn
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder
 
 /**
  * Custom player wrapper that implements headphone control shortcuts and enforces
@@ -27,6 +29,9 @@ class SmartForwardingPlayer(basePlayer: Player) : ForwardingPlayer(basePlayer) {
         if (shuffleModeEnabled && isUnplayedManualItem(nextIndex)) {
             seekToDefaultPosition(nextIndex)
         } else {
+            if (shuffleModeEnabled && !hasNextMediaItem() && mediaItemCount > 1) {
+                (wrappedPlayer as? ExoPlayer)?.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(mediaItemCount))
+            }
             super.seekToNext()
         }
     }
@@ -36,6 +41,9 @@ class SmartForwardingPlayer(basePlayer: Player) : ForwardingPlayer(basePlayer) {
         if (shuffleModeEnabled && isUnplayedManualItem(nextIndex)) {
             seekToDefaultPosition(nextIndex)
         } else {
+            if (shuffleModeEnabled && !hasNextMediaItem() && mediaItemCount > 1) {
+                (wrappedPlayer as? ExoPlayer)?.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(mediaItemCount))
+            }
             super.seekToNextMediaItem()
         }
     }

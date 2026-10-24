@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -175,11 +176,14 @@ fun LyricsView(
                     }
                     val listState = rememberLazyListState()
 
+                    val density = LocalDensity.current
+                    val topOffsetPx = with(density) { - 30.dp.toPx().toInt() }
+
                     LaunchedEffect(activeIndex) {
                         if (activeIndex >= 0) {
                             listState.animateScrollToItem(
                                 index = activeIndex,
-                                scrollOffset = -120
+                                scrollOffset = topOffsetPx
                             )
                         }
                     }
@@ -187,32 +191,36 @@ fun LyricsView(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 100.dp),
+                        contentPadding = PaddingValues(top = 30.dp, bottom = 120.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         itemsIndexed(parsedLines) { index, line ->
                             val isActive = index == activeIndex
 
                             val scale by animateFloatAsState(
-                                targetValue = if (isActive) 1.1f else 1.0f,
-                                animationSpec = tween(durationMillis = 250),
+                                targetValue = if (isActive) 1.08f else 1.0f,
+                                animationSpec = tween(durationMillis = 200),
                                 label = "scale"
                             )
                             val textColor by animateColorAsState(
-                                targetValue = if (isActive) contentColor else contentColor.copy(alpha = 0.45f),
-                                animationSpec = tween(durationMillis = 250),
+                                targetValue = when {
+                                    isActive -> contentColor
+                                    index > activeIndex -> contentColor.copy(alpha = 0.75f)
+                                    else -> contentColor.copy(alpha = 0.35f)
+                                },
+                                animationSpec = tween(durationMillis = 200),
                                 label = "color"
                             )
 
                             Text(
                                 text = line.text,
                                 fontSize = if (isActive) 20.sp else 16.sp,
-                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                                 color = textColor,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 10.dp, horizontal = 20.dp)
+                                    .padding(vertical = 8.dp, horizontal = 16.dp)
                                     .scale(scale)
                                     .clickable { onSeekTo(line.timestampMs) }
                             )
