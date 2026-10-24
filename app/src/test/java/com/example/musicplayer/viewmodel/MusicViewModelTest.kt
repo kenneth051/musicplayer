@@ -34,6 +34,7 @@ class MusicViewModelTest {
         coEvery { repository.getRecentlyPlayedIds() } returns flowOf(emptyList())
         coEvery { repository.getExcludeWhatsAppAudio() } returns flowOf(true)
         coEvery { repository.getExcludeCallRecordings() } returns flowOf(true)
+        coEvery { repository.getExcludeVoiceRecordings() } returns flowOf(true)
         coEvery { repository.getExcludedFolders() } returns flowOf(emptySet())
         coEvery { repository.getSyncLyricsEnabled() } returns flowOf(true)
         coEvery { repository.getLyrics() } returns flowOf(emptyMap())

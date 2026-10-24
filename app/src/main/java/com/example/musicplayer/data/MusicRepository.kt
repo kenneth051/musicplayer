@@ -94,6 +94,8 @@ class MusicRepository(private val context: Context) {
     suspend fun saveExcludeWhatsAppAudio(exclude: Boolean) = persistence.saveExcludeWhatsAppAudio(exclude)
     fun getExcludeCallRecordings() = persistence.excludeCallRecordings
     suspend fun saveExcludeCallRecordings(exclude: Boolean) = persistence.saveExcludeCallRecordings(exclude)
+    fun getExcludeVoiceRecordings() = persistence.excludeVoiceRecordings
+    suspend fun saveExcludeVoiceRecordings(exclude: Boolean) = persistence.saveExcludeVoiceRecordings(exclude)
     fun getExcludedFolders() = persistence.excludedFolders
     suspend fun saveExcludedFolders(folders: Set<String>) = persistence.saveExcludedFolders(folders)
     fun getSyncLyricsEnabled() = persistence.syncLyricsEnabled

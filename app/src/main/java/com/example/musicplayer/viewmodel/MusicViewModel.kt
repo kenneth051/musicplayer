@@ -72,6 +72,9 @@ class MusicViewModel(
     private val _excludeCallRecordings = MutableStateFlow(true)
     val excludeCallRecordings: StateFlow<Boolean> = _excludeCallRecordings
 
+    private val _excludeVoiceRecordings = MutableStateFlow(true)
+    val excludeVoiceRecordings: StateFlow<Boolean> = _excludeVoiceRecordings
+
     private val _excludedFolders = MutableStateFlow<Set<String>>(emptySet())
     val excludedFolders: StateFlow<Set<String>> = _excludedFolders
 
@@ -88,8 +91,9 @@ class MusicViewModel(
         _songs,
         _excludeWhatsAppAudio,
         _excludeCallRecordings,
+        _excludeVoiceRecordings,
         _excludedFolders
-    ) { songs, excludeWhatsApp, excludeCalls, excludedFolders ->
+    ) { songs, excludeWhatsApp, excludeCalls, excludeVoice, excludedFolders ->
         songs.filterNot { song ->
             val folderLower = song.parentFolder.lowercase()
             val pathLower = song.fullPath.lowercase()
@@ -104,18 +108,22 @@ class MusicViewModel(
                 pathLower.contains("voice notes")
             )) return@filterNot true
 
-            // 3. Filter Call & Voice Recordings
+            // 3. Filter Call Recordings
             if (excludeCalls && (
                 folderLower.contains("call") ||
-                folderLower.contains("recorder") ||
-                folderLower.contains("recordings") ||
                 pathLower.contains("call_rec") ||
                 pathLower.contains("callrecord") ||
                 pathLower.contains("call_recording") ||
+                pathLower.contains("phone_record")
+            )) return@filterNot true
+
+            // 4. Filter Voice & Sound Recordings
+            if (excludeVoice && (
+                folderLower.contains("recorder") ||
+                folderLower.contains("recordings") ||
                 pathLower.contains("sound_recorder") ||
                 pathLower.contains("voice_recorder") ||
-                pathLower.contains("audio_recorder") ||
-                pathLower.contains("phone_record")
+                pathLower.contains("audio_recorder")
             )) return@filterNot true
 
             false
@@ -216,6 +224,7 @@ class MusicViewModel(
                 _recentlyPlayed.value = _songs.value.filter { it.id in recentIds }
                 _excludeWhatsAppAudio.value = repo.getExcludeWhatsAppAudio().first()
                 _excludeCallRecordings.value = repo.getExcludeCallRecordings().first()
+                _excludeVoiceRecordings.value = repo.getExcludeVoiceRecordings().first()
                 _excludedFolders.value = repo.getExcludedFolders().first()
             }
         }
@@ -230,6 +239,11 @@ class MusicViewModel(
     fun setExcludeCallRecordings(exclude: Boolean) {
         _excludeCallRecordings.value = exclude
         viewModelScope.launch { repository?.saveExcludeCallRecordings(exclude) }
+    }
+
+    fun setExcludeVoiceRecordings(exclude: Boolean) {
+        _excludeVoiceRecordings.value = exclude
+        viewModelScope.launch { repository?.saveExcludeVoiceRecordings(exclude) }
     }
 
     fun toggleExcludeFolder(folderName: String) {

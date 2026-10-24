@@ -65,6 +65,7 @@ fun SongListScreen(
     val sortOrder by viewModel.sortOrder.collectAsState()
     val excludeWhatsAppAudio by viewModel.excludeWhatsAppAudio.collectAsState()
     val excludeCallRecordings by viewModel.excludeCallRecordings.collectAsState()
+    val excludeVoiceRecordings by viewModel.excludeVoiceRecordings.collectAsState()
     val excludedFolders by viewModel.excludedFolders.collectAsState()
     val favoriteSongs = songs.filter { it.isFavorite }
 
@@ -145,12 +146,22 @@ fun SongListScreen(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Exclude Call & Voice recordings") },
+                                    text = { Text("Exclude Call recordings") },
                                     onClick = { viewModel.setExcludeCallRecordings(!excludeCallRecordings) },
                                     trailingIcon = {
                                         Checkbox(
                                             checked = excludeCallRecordings,
                                             onCheckedChange = { viewModel.setExcludeCallRecordings(it) }
+                                        )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Exclude Voice & Sound recordings") },
+                                    onClick = { viewModel.setExcludeVoiceRecordings(!excludeVoiceRecordings) },
+                                    trailingIcon = {
+                                        Checkbox(
+                                            checked = excludeVoiceRecordings,
+                                            onCheckedChange = { viewModel.setExcludeVoiceRecordings(it) }
                                         )
                                     }
                                 )
