@@ -195,11 +195,13 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         clickHandler.removeCallbacks(resolveClicksRunnable)
-        mediaSession?.run {
-            player.release()
-            release()
-            mediaSession = null
+        runCatching {
+            mediaSession?.run {
+                player.release()
+                release()
+            }
         }
+        mediaSession = null
         super.onDestroy()
     }
 

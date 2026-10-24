@@ -261,7 +261,18 @@ class PlaybackManager(private val context: Context) {
     }
 
     fun release() {
-        controllerFuture?.let { MediaController.releaseFuture(it) }
+        try {
+            controllerFuture?.let { future ->
+                if (!future.isCancelled) {
+                    runCatching { MediaController.releaseFuture(future) }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing MediaController: ${e.message}", e)
+        } finally {
+            controllerFuture = null
+            _controller.value = null
+        }
     }
 
     companion object {
